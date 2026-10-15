@@ -3,483 +3,1996 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>FH5 Tuner & Telemetry Cluster</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap');
+  <title>FH5 Apex Pro — Tuning Hub & 10 Cockpit Clusters</title>
 
-    body {
-      font-family: 'Rajdhani', sans-serif;
-      touch-action: manipulation;
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#EFF6FF',
+              100: '#DBEAFE',
+              200: '#BFDBFE',
+              300: '#93C5FD',
+              400: '#60A5FA',
+              500: '#3B82F6',
+              600: '#2563EB',
+              700: '#1D4ED8',
+              800: '#1E40AF',
+              900: '#1E3A8A',
+              950: '#0F172A',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            hud: ['Orbitron', 'monospace'],
+            mono: ['Share Tech Mono', 'monospace'],
+          }
+        }
+      }
     }
-    .font-hud {
-      font-family: 'Orbitron', monospace;
+  </script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #F1F5F9; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+    /* Ultra Sport Mode Glow */
+    @keyframes ultraSurge {
+      0% { box-shadow: 0 0 20px rgba(37, 99, 235, 0.4), inset 0 0 15px rgba(59, 130, 246, 0.2); }
+      50% { box-shadow: 0 0 45px rgba(37, 99, 235, 0.85), inset 0 0 35px rgba(96, 165, 250, 0.5); }
+      100% { box-shadow: 0 0 20px rgba(37, 99, 235, 0.4), inset 0 0 15px rgba(59, 130, 246, 0.2); }
     }
-    .su7-glow {
-      box-shadow: 0 0 35px rgba(234, 179, 8, 0.45), inset 0 0 25px rgba(234, 179, 8, 0.2);
+    .ultra-mode-active {
+      animation: ultraSurge 1.3s infinite ease-in-out;
+      border-color: #3B82F6 !important;
     }
-    .cyber-clip {
-      clip-path: polygon(0 0, 92% 0, 100% 25%, 100% 100%, 8% 100%, 0 75%);
+
+    @keyframes shiftFlash {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; filter: drop-shadow(0 0 8px currentColor); }
     }
-    @keyframes pulse-ring {
-      0% { transform: scale(0.95); opacity: 0.8; }
-      50% { transform: scale(1.05); opacity: 1; filter: drop-shadow(0 0 15px #eab308); }
-      100% { transform: scale(0.95); opacity: 0.8; }
+    .led-shift-active {
+      animation: shiftFlash 0.12s infinite;
     }
-    .ultra-active {
-      animation: pulse-ring 1.8s infinite ease-in-out;
+
+    .vfd-text {
+      text-shadow: 0 0 8px rgba(34, 211, 238, 0.85);
     }
   </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col select-none">
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col font-sans selection:bg-brand-600 selection:text-white">
 
-  <!-- Header & Navigation -->
-  <header class="bg-zinc-900/90 backdrop-blur border-b border-zinc-800 p-3 sticky top-0 z-50 flex items-center justify-between">
-    <div class="flex items-center gap-2">
-      <div class="w-3 h-3 rounded-full bg-yellow-500 animate-ping"></div>
-      <span class="font-hud font-bold text-sm tracking-widest text-zinc-100">FH5 TELEMETRY APEX</span>
-    </div>
-    <div class="flex bg-zinc-950 p-1 rounded-lg border border-zinc-800">
-      <button id="tabBtnTune" onclick="switchTab('tune')" class="px-3 py-1 text-xs font-bold rounded bg-yellow-500 text-black transition">ТЮНИНГ</button>
-      <button id="tabBtnCluster" onclick="switchTab('cluster')" class="px-3 py-1 text-xs font-bold rounded text-zinc-400 hover:text-white transition">ПРИБОРКА</button>
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 transition-all duration-300 opacity-0 pointer-events-none -translate-y-2 border border-slate-700">
+    <span id="toastIcon" class="text-brand-400">✓</span>
+    <span id="toastMsg">Уведомление</span>
+  </div>
+
+  <!-- Header -->
+  <header class="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-700 via-brand-600 to-blue-500 flex items-center justify-center text-white font-hud font-black text-sm shadow-md shadow-brand-500/20">
+          FH5
+        </div>
+        <div>
+          <h1 class="font-bold text-sm tracking-tight text-slate-900 flex items-center gap-1.5">
+            APEX PRO HUB
+            <span class="text-[9px] font-mono uppercase bg-brand-50 text-brand-700 border border-brand-200 px-1.5 py-0.5 rounded-md font-bold">500+ CARS</span>
+          </h1>
+          <p class="text-[10px] text-slate-500 font-medium">Smart Tuning Physics & 10 Live Clusters</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+        <button id="navTune" onclick="setTab('tune')" class="px-3 py-1.5 rounded-lg bg-white text-brand-700 shadow-sm transition">
+          🛠️ Авто и Тюнинг
+        </button>
+        <button id="navCluster" onclick="setTab('cluster')" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">
+          🏎️ Спидометры
+        </button>
+        <button id="navConn" onclick="setTab('conn')" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">
+          📡 Связь UDP
+        </button>
+      </nav>
     </div>
   </header>
 
-  <!-- TAB 1: FH5 TUNING GENERATOR -->
-  <main id="tabTune" class="flex-1 p-4 max-w-xl mx-auto w-full space-y-4">
-    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-lg">
-      <h2 class="text-sm font-bold text-yellow-500 uppercase tracking-wider mb-3">Параметры автомобиля</h2>
+  <!-- MAIN CONTAINER -->
+  <div class="max-w-6xl mx-auto w-full p-4 flex-1 flex flex-col">
+
+    <!-- ================================================================= -->
+    <!-- TAB 1: 500+ CARS DATABASE & SMART TUNING GENERATOR                -->
+    <!-- ================================================================= -->
+    <section id="sectionTune" class="space-y-4">
       
-      <div class="grid grid-cols-2 gap-3 text-xs mb-3">
+      <!-- Search & Filters Container -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+        
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-brand-600 animate-pulse"></span>
+              База автомобилей Forza Horizon 5
+            </h2>
+            <p class="text-xs text-slate-500">Умный поиск по 500+ моделям, индексам и сленгу (R34, Supra 98, GT3 RS, Jesko, M3 GTR, Evo 9, SU7...)</p>
+          </div>
+
+          <!-- Multi-Token Search Field -->
+          <div class="relative flex-1 md:max-w-md">
+            <div class="relative">
+              <input type="text" id="carSearchInput" oninput="onCarSearch(this.value)" placeholder="Поиск (R34, Supra, Jesko, GT3 RS, Demon, SU7, Chiron...)" 
+                     class="w-full bg-slate-50 border border-slate-200 focus:border-brand-500 focus:bg-white rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 outline-none transition font-medium">
+              <span class="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
+              <button id="btnClearSearch" onclick="clearSearch()" class="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs hidden">✕</button>
+            </div>
+            <!-- Live Suggestions Dropdown -->
+            <div id="searchSuggestions" class="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-30 max-h-64 overflow-y-auto hidden divide-y divide-slate-100"></div>
+          </div>
+        </div>
+
+        <!-- Filter Row 1: Categories -->
+        <div class="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-600 pt-1 border-t border-slate-100">
+          <button onclick="filterCategory('all')" class="cat-pill px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 border border-brand-200">Все (<span id="totalCarsCount">0</span>)</button>
+          <button onclick="filterCategory('jdm')" class="cat-pill px-3 py-1.5 rounded-lg hover:bg-slate-100">JDM Легенды</button>
+          <button onclick="filterCategory('supercars')" class="cat-pill px-3 py-1.5 rounded-lg hover:bg-slate-100">Суперкары</button>
+          <button onclick="filterCategory('hypercars')" class="cat-pill px-3 py-1.5 rounded-lg hover:bg-slate-100">Гиперкары</button>
+          <button onclick="filterCategory('track')" class="cat-pill px-3 py-1.5 rounded-lg hover:bg-slate-100">Track Toys</button>
+          <button onclick="filterCategory('muscle')" class="cat-pill px-3 py-1.5 rounded-lg hover:bg-slate-100">Muscle Cars</button>
+          <button onclick="filterCategory('rally')" class="cat-pill px-3 py-1.5 rounded-lg hover:bg-slate-100">Ралли</button>
+          <button onclick="filterCategory('offroad')" class="cat-pill px-3 py-1.5 rounded-lg hover:bg-slate-100">Внедорожники</button>
+          <button onclick="filterCategory('electric')" class="cat-pill px-3 py-1.5 rounded-lg hover:bg-slate-100">Электро / EV</button>
+        </div>
+
+        <!-- Filter Row 2: PI Class Badges + Drivetrain + Live Counter -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+          
+          <!-- PI Badges -->
+          <div class="flex items-center gap-1 overflow-x-auto pb-1">
+            <span class="text-slate-400 font-bold mr-1 text-[11px]">КЛАСС:</span>
+            <button onclick="filterPiClass('all')" class="pi-filter-btn px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-200 text-slate-800">ВСЕ</button>
+            <button onclick="filterPiClass('D')" class="pi-filter-btn px-2 py-1 rounded-md text-[10px] font-hud font-bold bg-sky-600 text-white">D</button>
+            <button onclick="filterPiClass('C')" class="pi-filter-btn px-2 py-1 rounded-md text-[10px] font-hud font-bold bg-amber-500 text-black">C</button>
+            <button onclick="filterPiClass('B')" class="pi-filter-btn px-2 py-1 rounded-md text-[10px] font-hud font-bold bg-orange-600 text-white">B</button>
+            <button onclick="filterPiClass('A')" class="pi-filter-btn px-2 py-1 rounded-md text-[10px] font-hud font-bold bg-rose-600 text-white">A</button>
+            <button onclick="filterPiClass('S1')" class="pi-filter-btn px-2 py-1 rounded-md text-[10px] font-hud font-bold bg-purple-600 text-white">S1</button>
+            <button onclick="filterPiClass('S2')" class="pi-filter-btn px-2 py-1 rounded-md text-[10px] font-hud font-bold bg-blue-600 text-white">S2</button>
+            <button onclick="filterPiClass('X')" class="pi-filter-btn px-2 py-1 rounded-md text-[10px] font-hud font-bold bg-emerald-500 text-black">X</button>
+          </div>
+
+          <!-- Drivetrain & Count Status -->
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1 font-mono text-[11px]">
+              <span class="text-slate-400">ПРИВОД:</span>
+              <select id="driveFilterSelect" onchange="filterDrivetrain(this.value)" class="bg-slate-100 border border-slate-200 rounded px-2 py-0.5 font-bold outline-none">
+                <option value="all">ЛЮБОЙ</option>
+                <option value="AWD">AWD (Полный)</option>
+                <option value="RWD">RWD (Задний)</option>
+                <option value="FWD">FWD (Передний)</option>
+              </select>
+            </div>
+            <span id="filteredCarsCountLabel" class="text-[11px] font-mono text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
+              Показано: 0 из 500+
+            </span>
+          </div>
+
+        </div>
+
+        <!-- Horizontal Fast Car Carousel -->
+        <div id="carCardsScroll" class="flex gap-2.5 overflow-x-auto py-2.5 min-h-[92px]">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Active Selected Car Hero Card -->
+      <div class="bg-gradient-to-r from-brand-800 via-brand-700 to-blue-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
+        <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span id="activeCarClassBadge" class="px-2.5 py-0.5 rounded text-[11px] font-hud font-black bg-white text-brand-800 shadow-sm">A 780</span>
+              <span id="activeCarDrivetrain" class="px-2 py-0.5 rounded text-[10px] font-mono bg-white/20 uppercase tracking-widest font-bold">RWD</span>
+              <span id="activeCarYear" class="text-xs text-blue-100 font-mono">1998</span>
+              <span id="activeCarEngine" class="text-xs text-blue-200 font-medium">3.0L Twin-Turbo I6 (2JZ-GTE)</span>
+            </div>
+            <h3 id="activeCarName" class="text-2xl md:text-3xl font-bold tracking-tight">Toyota Supra RZ</h3>
+            <p id="activeCarSpecs" class="text-xs text-blue-100 mt-1">326 л.с. • Масса: 1490 кг • Развесовка: 53% на переднюю ось</p>
+          </div>
+
+          <!-- Share Code Card -->
+          <div class="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 flex items-center justify-between gap-4">
+            <div>
+              <p class="text-[9px] uppercase tracking-wider text-blue-200 font-bold">Код настроек FH5 (Share Code)</p>
+              <p id="shareCodeDisplay" class="font-hud font-bold text-lg tracking-widest text-white mt-0.5">482 194 029</p>
+            </div>
+            <button onclick="copyShareCode()" class="bg-white hover:bg-blue-50 active:scale-95 text-brand-700 px-3 py-2 rounded-xl transition shadow-md text-xs font-bold flex items-center gap-1.5 whitespace-nowrap">
+              <span>📋 Копировать</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 6 Specialized Tuning Disciplines Switcher -->
+        <div class="mt-5 pt-3.5 border-t border-white/15 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-xs font-bold">
+          <button onclick="setDiscipline('road')" id="discRoad" class="disc-btn py-2.5 px-2 rounded-xl bg-white text-brand-700 shadow-sm text-center transition">
+            🛣️ Шоссе (Grip)
+          </button>
+          <button onclick="setDiscipline('drift')" id="discDrift" class="disc-btn py-2.5 px-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-center transition">
+            💨 Дрифт
+          </button>
+          <button onclick="setDiscipline('rally')" id="discRally" class="disc-btn py-2.5 px-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-center transition">
+            🌲 Ралли / Грунт
+          </button>
+          <button onclick="setDiscipline('cross')" id="discCross" class="disc-btn py-2.5 px-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-center transition">
+            🚜 Автокросс
+          </button>
+          <button onclick="setDiscipline('drag')" id="discDrag" class="disc-btn py-2.5 px-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-center transition">
+            ⚡ Дрэг (402м)
+          </button>
+          <button onclick="setDiscipline('speed')" id="discSpeed" class="disc-btn py-2.5 px-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-center transition">
+            🚀 Топ Спид
+          </button>
+        </div>
+      </div>
+
+      <!-- Complete Tuning Setup Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+        
+        <!-- 1. Tires & Gearing -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-brand-700 flex items-center gap-1.5">
+              <span>🛞</span> Давление шин & КПП
+            </span>
+            <span class="text-[10px] text-slate-400 font-mono">TIRES / GEARS</span>
+          </div>
+
+          <div class="space-y-2 text-xs">
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Шины (Перед)</span>
+              <span id="tuneTireF" class="font-mono font-bold text-slate-900">1.9 bar (27.5 psi)</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Шины (Зад)</span>
+              <span id="tuneTireR" class="font-mono font-bold text-slate-900">1.8 bar (26.0 psi)</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Главная пара (Final Drive)</span>
+              <span id="tuneFinalDrive" class="font-mono font-bold text-brand-600">3.65</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <span class="text-slate-500 font-medium block mb-1">Ступени передач:</span>
+              <p class="text-[11px] text-slate-800 font-mono leading-relaxed" id="tuneGearsList">
+                1: 3.10 | 2: 2.15 | 3: 1.62 | 4: 1.28 | 5: 1.05 | 6: 0.88
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Alignment & Anti-roll Bars (ARB) -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-brand-700 flex items-center gap-1.5">
+              <span>📐</span> Развал & Стабилизаторы
+            </span>
+            <span class="text-[10px] text-slate-400 font-mono">ALIGN / ARB</span>
+          </div>
+
+          <div class="space-y-2 text-xs">
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Развал (Camber П / З)</span>
+              <span id="tuneCamber" class="font-mono font-bold text-slate-900">-1.8° / -1.2°</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Схождение (Toe П / З)</span>
+              <span id="tuneToe" class="font-mono font-bold text-slate-900">0.0° / -0.1°</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Кастер (Caster Angle)</span>
+              <span id="tuneCaster" class="font-mono font-bold text-slate-900">6.2°</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Стабилизаторы (ARB П / З)</span>
+              <span id="tuneArb" class="font-mono font-bold text-brand-600">34.8 / 31.2</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Springs, Damping, Aero & Diff -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-brand-700 flex items-center gap-1.5">
+              <span>⚙️</span> Подвеска & Дифференциал
+            </span>
+            <span class="text-[10px] text-slate-400 font-mono">SUSP / DIFF</span>
+          </div>
+
+          <div class="space-y-2 text-xs">
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Пружины (Жесткость П / З)</span>
+              <span id="tuneSprings" class="font-mono font-bold text-slate-900">118.5 / 104.2 кгс/мм</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Клиренс (Высота П / З)</span>
+              <span id="tuneHeight" class="font-mono font-bold text-slate-900">115 / 120 мм</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Амортизаторы (Отбой / Сжатие)</span>
+              <span id="tuneDamping" class="font-mono font-bold text-slate-900">10.8 / 5.9</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Прижимная сила (Aero П / З)</span>
+              <span id="tuneAero" class="font-mono font-bold text-slate-900">110 / 185 кг</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+              <span class="text-slate-500 font-medium">Дифференциал</span>
+              <span id="tuneDiff" class="font-mono font-bold text-brand-600">65% / 20%</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Pro Tuning Tips Box -->
+      <div class="bg-brand-50/70 border border-brand-200/80 rounded-2xl p-4 text-xs text-brand-900 flex items-start gap-3">
+        <span class="text-base">💡</span>
         <div>
-          <label class="block text-zinc-400 mb-1">Привод</label>
-          <select id="tuneDrivetrain" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-white font-bold">
-            <option value="AWD" selected>AWD (Полный)</option>
-            <option value="RWD">RWD (Задний)</option>
-            <option value="FWD">FWD (Передний)</option>
+          <h4 class="font-bold text-brand-800" id="tuneTipTitle">Советы настройки для дисциплины Шоссе (Grip)</h4>
+          <p class="text-brand-700/90 mt-0.5 leading-relaxed text-[11px]" id="tuneTipBody">
+            Для стабильного входа в поворот держите передний развал в диапазоне -1.5°...-2.0°. Если машина страдает избыточной поворачиваемостью на выходе из апекса, слегка смягчите задний стабилизатор или снизьте ускорение заднего дифференциала.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- TAB 2: 10 SPEEDOMETERS + XIAOMI SU7 ULTRA SPORT MODE             -->
+    <!-- ================================================================= -->
+    <section id="sectionCluster" class="space-y-4 hidden flex-1 flex flex-col">
+      
+      <!-- Cluster Top Action Bar -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+        
+        <!-- Style Selector -->
+        <div class="flex items-center gap-2 flex-1">
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Стиль приборной панели:</label>
+          <select id="gaugeSkinSelect" onchange="onSelectGaugeSkin(this.value)" 
+                  class="w-full bg-slate-50 border border-slate-200 font-bold text-xs rounded-xl p-2 text-slate-900 focus:border-brand-500 outline-none transition cursor-pointer">
+            <option value="fh5_digital">1. FH5 Standard Digital (Спидометр Форзы)</option>
+            <option value="fh5_analog">2. FH5 Classic Twin Analog (Аналоговые стрелочные колодцы)</option>
+            <option value="su7_ultra">3. Xiaomi SU7 Ultra Hyper (3 Мотора 1548 PS + G-Meter)</option>
+            <option value="lexus_lfa">4. Lexus LFA Metal Sliding Ring (9500 RPM Bezel)</option>
+            <option value="mclaren_slim">5. McLaren Track Slimline (Гоночные LED-индикаторы)</option>
+            <option value="audi_rs">6. Audi Virtual Cockpit RS (Хоккейный тахометр)</option>
+            <option value="jdm_digi">7. Retro JDM Digidash (AE86 / Honda S2000 AP1)</option>
+            <option value="motec_gt3">8. MoTeC C125 Pro Motorsport (16-LED Shift Lights)</option>
+            <option value="bmw_m">9. BMW M Twin Chevrons (Сходящиеся стрелы)</option>
+            <option value="jet_hud">10. Fighter Jet Aviation HUD (Авиационный коллиматор)</option>
           </select>
         </div>
-        <div>
-          <label class="block text-zinc-400 mb-1">Дисциплина</label>
-          <select id="tuneDiscipline" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-white font-bold">
-            <option value="road" selected>Шоссе / Grip</option>
-            <option value="drift">Дрифт</option>
-            <option value="rally">Ралли / Грунт</option>
-            <option value="drag">Дрэг 402м</option>
-            <option value="cross">Автокросс</option>
-          </select>
-        </div>
-      </div>
 
-      <div class="grid grid-cols-2 gap-3 text-xs mb-4">
-        <div>
-          <label class="block text-zinc-400 mb-1">Развесовка перед (%): <span id="weightVal" class="text-yellow-400 font-bold">52%</span></label>
-          <input type="range" id="tuneWeightDist" min="35" max="65" value="52" class="w-full accent-yellow-500" oninput="document.getElementById('weightVal').innerText = this.value + '%'">
-        </div>
-        <div>
-          <label class="block text-zinc-400 mb-1">Вес авто (кг)</label>
-          <input type="number" id="tuneWeight" value="1350" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-1.5 text-white font-bold">
-        </div>
-      </div>
-
-      <button onclick="calculateTune()" class="w-full py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-hud font-bold rounded-xl text-xs tracking-wider transition uppercase shadow-md">
-        Рассчитать сетап для FH5
-      </button>
-    </div>
-
-    <!-- Tuning Output Table -->
-    <div id="tuneResult" class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-lg space-y-3">
-      <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
-        <span class="font-hud text-xs text-yellow-500 font-bold uppercase">Рекомендуемый сетап</span>
-        <span id="tuneBadge" class="text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono">AWD GRIP SPEC</span>
-      </div>
-
-      <div class="grid grid-cols-2 gap-2 text-xs">
-        <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80">
-          <p class="text-zinc-500 text-[10px] uppercase">Шины (Давление)</p>
-          <p class="font-mono text-zinc-200" id="resTires">Перед: 1.9 / Зад: 1.9 Bar</p>
-        </div>
-        <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80">
-          <p class="text-zinc-500 text-[10px] uppercase">Сход-Развал</p>
-          <p class="font-mono text-zinc-200" id="resCamber">Перед: -1.8° / Зад: -1.2°</p>
-        </div>
-        <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80">
-          <p class="text-zinc-500 text-[10px] uppercase">Стабилизаторы (ARB)</p>
-          <p class="font-mono text-zinc-200" id="resArb">Перед: 34.5 / Зад: 29.8</p>
-        </div>
-        <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80">
-          <p class="text-zinc-500 text-[10px] uppercase">Амортизаторы (Отбой/Сжатие)</p>
-          <p class="font-mono text-zinc-200" id="resDamp">Отбой: 10.4 / Сжатие: 5.8</p>
-        </div>
-        <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80 col-span-2">
-          <p class="text-zinc-500 text-[10px] uppercase">Дифференциал (Перед / Зад / Баланс)</p>
-          <p class="font-mono text-yellow-400" id="resDiff">Перед: 25%/0% | Зад: 65%/20% | Центр: 65% назад</p>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <!-- TAB 2: INTERACTIVE SPEEDOMETER CLUSTER -->
-  <main id="tabCluster" class="flex-1 p-3 flex flex-col justify-between max-w-2xl mx-auto w-full hidden">
-    
-    <!-- Top Controls: Styles & Sport Mode -->
-    <div class="flex flex-col gap-2 mb-2">
-      <div class="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-        <select id="skinSelector" onchange="changeSkin(this.value)" class="bg-zinc-900 border border-zinc-700 text-yellow-400 rounded-lg p-2 font-bold text-xs">
-          <option value="su7">1. Xiaomi SU7 Ultra Track</option>
-          <option value="cyber">2. Cyberpunk 2077 HUD</option>
-          <option value="f1">3. F1 Telemetry LED</option>
-          <option value="jdm">4. JDM Defi Amber</option>
-          <option value="porsche">5. Porsche Track Precision</option>
-          <option value="synth">6. Synthwave Outrun 80s</option>
-          <option value="ghost">7. Koenigsegg Ghost</option>
-          <option value="wrc">8. WRC Rally MoTeC</option>
-          <option value="drift">9. Formula Drift Cockpit</option>
-          <option value="hud">10. Fighter Jet Aviation HUD</option>
-        </select>
-
-        <!-- SU7 ULTRA SPORT MODE TOGGLE -->
-        <button id="ultraBtn" onclick="toggleUltraSport()" class="flex-1 py-2 px-3 bg-gradient-to-r from-yellow-600 via-amber-500 to-yellow-400 hover:brightness-110 text-black font-hud font-black text-xs rounded-lg tracking-wider uppercase transition shadow-lg flex items-center justify-center gap-1.5 whitespace-nowrap">
-          <span>⚡ ULTRA SPORT MODE</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Cluster Screen Container -->
-    <div id="gaugeScreen" class="relative flex-1 min-h-[300px] bg-zinc-900 border-2 border-zinc-800 rounded-3xl p-4 flex flex-col justify-between overflow-hidden transition-all duration-500">
-      
-      <!-- Top Bar Inside Dash -->
-      <div class="flex justify-between items-center text-xs border-b border-white/10 pb-2 z-10">
         <div class="flex items-center gap-2">
-          <span id="dashBrand" class="font-hud font-bold tracking-widest text-yellow-400">XIAOMI SU7 ULTRA</span>
-          <span id="dashModeTag" class="px-1.5 py-0.5 rounded text-[9px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-mono">TRACK APEX</span>
-        </div>
-        <div class="flex gap-3 font-mono text-[11px] text-zinc-400">
-          <span>G: <b id="gForceVal" class="text-white">0.05</b></span>
-          <span>PWR: <b id="pwrVal" class="text-yellow-400">1548 PS</b></span>
-        </div>
-      </div>
+          <!-- KMH / MPH Toggle -->
+          <button onclick="toggleUnits()" id="unitToggleBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono font-bold text-xs px-3 py-2 rounded-xl transition">
+            KM/H
+          </button>
 
-      <!-- Main Central Visuals (Speed & Tachometer) -->
-      <div class="relative flex-1 flex items-center justify-center my-4">
-        <!-- SVG Radial Gauge -->
-        <svg class="w-64 h-64 -rotate-90 transform" viewBox="0 0 200 200">
-          <circle cx="100" cy="100" r="82" stroke="currentColor" stroke-width="8" class="text-zinc-800/80" fill="transparent"/>
-          <circle id="gaugeArc" cx="100" cy="100" r="82" stroke="currentColor" stroke-width="10" 
-                  class="text-yellow-400 transition-all duration-75"
-                  fill="transparent"
-                  stroke-dasharray="515"
-                  stroke-dashoffset="515"
-                  stroke-linecap="round"/>
-        </svg>
-
-        <!-- Centered Speed Readout -->
-        <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <div id="gearDisplay" class="font-hud text-xl font-bold text-yellow-500 -mb-1">1</div>
-          <div id="speedDisplay" class="font-hud text-6xl font-black tracking-tighter text-white drop-shadow-md">0</div>
-          <div class="text-[11px] font-mono tracking-widest text-zinc-400 -mt-1 uppercase">km / h</div>
-          <div id="rpmText" class="text-[10px] font-mono text-zinc-500 mt-1">950 RPM</div>
+          <!-- ⚡ XIAOMI SU7 ULTRA SPORT MODE BUTTON -->
+          <button id="btnUltraSport" onclick="toggleUltraSportMode()" 
+                  class="py-2 px-3.5 rounded-xl font-hud font-bold text-xs tracking-wider transition-all duration-300 flex items-center justify-center gap-2 bg-gradient-to-r from-brand-700 via-brand-600 to-cyan-500 text-white shadow-md hover:shadow-brand-500/30 active:scale-95 whitespace-nowrap">
+            <span class="animate-pulse">⚡</span>
+            <span>ULTRA SPORT MODE</span>
+          </button>
         </div>
       </div>
 
-      <!-- Bottom Telemetry Stats -->
-      <div id="extraWidgets" class="grid grid-cols-3 gap-2 text-center text-xs z-10">
-        <div class="bg-black/40 border border-white/5 p-1.5 rounded-xl">
-          <p class="text-[9px] text-zinc-400 uppercase">Battery Temp</p>
-          <p id="subStat1" class="font-mono font-bold text-emerald-400">38°C</p>
+      <!-- MAIN INSTRUMENT COCKPIT SCREEN -->
+      <div id="clusterScreen" class="relative flex-1 min-h-[400px] bg-slate-950 rounded-3xl p-5 border-2 border-slate-800 flex flex-col justify-between overflow-hidden shadow-2xl transition-all duration-500">
+        
+        <!-- Top Bar Inside Cockpit -->
+        <div class="flex justify-between items-center border-b border-white/10 pb-2.5 z-20">
+          <div class="flex items-center gap-2.5">
+            <span id="gaugeTitle" class="font-hud text-xs font-bold tracking-widest text-brand-400">FH5 DIGITAL APEX HUD</span>
+            <span id="gaugeBadge" class="text-[9px] font-mono px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">TELEMETRY READY</span>
+          </div>
+
+          <div class="flex items-center gap-3 text-[11px] font-mono text-slate-400">
+            <span>G: <b id="telemetryG" class="text-white">0.08</b></span>
+            <span>BOOST: <b id="telemetryBoost" class="text-cyan-400">1.4 Bar</b></span>
+            <span class="flex items-center gap-1.5">
+              <span id="udpPingDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span id="udpStatusText" class="text-slate-300 text-[10px]">SIMULATOR</span>
+            </span>
+          </div>
         </div>
-        <div class="bg-black/40 border border-white/5 p-1.5 rounded-xl">
-          <p class="text-[9px] text-zinc-400 uppercase">Torque Split</p>
-          <p id="subStat2" class="font-mono font-bold text-yellow-400">33 : 67</p>
+
+        <!-- Dynamic Gauge Center Viewport -->
+        <div id="gaugeViewport" class="relative flex-1 flex items-center justify-center my-3 z-10">
+          <!-- Injected dynamically -->
         </div>
-        <div class="bg-black/40 border border-white/5 p-1.5 rounded-xl">
-          <p class="text-[9px] text-zinc-400 uppercase">Aero Downforce</p>
-          <p id="subStat3" class="font-mono font-bold text-sky-400">285 kg</p>
+
+        <!-- Cockpit Bottom Widgets -->
+        <div id="gaugeFooterWidgets" class="grid grid-cols-3 gap-2.5 text-center text-xs z-20">
+          <div class="bg-white/5 backdrop-blur-md border border-white/10 p-2 rounded-xl">
+            <p class="text-[9px] font-mono uppercase tracking-wider text-slate-400">Тормоз / Газ</p>
+            <p id="footWidget1" class="font-mono font-bold text-brand-300">0% / 0%</p>
+          </div>
+          <div class="bg-white/5 backdrop-blur-md border border-white/10 p-2 rounded-xl">
+            <p class="text-[9px] font-mono uppercase tracking-wider text-slate-400">Мощность</p>
+            <p id="footWidget2" class="font-mono font-bold text-white">650 BHP</p>
+          </div>
+          <div class="bg-white/5 backdrop-blur-md border border-white/10 p-2 rounded-xl">
+            <p class="text-[9px] font-mono uppercase tracking-wider text-slate-400">Аэродинамика</p>
+            <p id="footWidget3" class="font-mono font-bold text-cyan-300">190 kg</p>
+          </div>
+        </div>
+
+        <!-- Ambient Backdrop -->
+        <div id="clusterLightningBackdrop" class="absolute inset-0 pointer-events-none opacity-10 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:20px_20px]"></div>
+      </div>
+
+      <!-- Test-Drive Simulation Pedals & Keyboard Helpers -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <span>🎮</span> Интерактивный симулятор телеметрии
+          </span>
+          <span class="text-slate-500 font-medium">Клавиши: <kbd class="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-300 font-mono">W</kbd> Газ | <kbd class="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-300 font-mono">S</kbd> Тормоз</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <button id="btnBrake" class="py-4 bg-slate-100 active:bg-rose-50 border border-slate-200 active:border-rose-300 rounded-2xl font-hud font-bold text-xs tracking-wider text-slate-700 active:text-rose-600 transition flex flex-col items-center justify-center select-none active:scale-98">
+            <span class="text-sm">🛑 ТОРМОЗ (BRAKE)</span>
+            <span class="text-[9px] font-mono text-slate-400 mt-0.5">Удерживайте для замедления</span>
+          </button>
+
+          <button id="btnThrottle" class="py-4 bg-gradient-to-r from-brand-700 to-brand-500 active:from-brand-800 active:to-brand-600 text-white rounded-2xl font-hud font-bold text-xs tracking-wider transition flex flex-col items-center justify-center shadow-lg active:scale-98 select-none shadow-brand-500/25">
+            <span class="text-sm">🚀 ГАЗ В ПОЛ (THROTTLE)</span>
+            <span class="text-[9px] font-mono text-blue-100 mt-0.5">Удерживайте для разгона</span>
+          </button>
         </div>
       </div>
 
-      <!-- Background Ambient Grid / SU7 Sport Glow Effect -->
-      <div id="ambientBackdrop" class="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(#eab308_1px,transparent_1px)] [background-size:16px_16px]"></div>
-    </div>
+    </section>
 
-    <!-- Pedals / Interaction Console -->
-    <div class="grid grid-cols-2 gap-3 mt-3">
-      <button id="brakeBtn" class="py-4 bg-zinc-800 active:bg-rose-900 border border-zinc-700 rounded-2xl font-hud font-bold text-sm tracking-wider text-rose-400 active:text-white transition flex flex-col items-center justify-center">
-        <span>ТОРМОЗ</span>
-        <span class="text-[10px] font-mono opacity-60">HOLD TO DECEL</span>
-      </button>
+    <!-- ================================================================= -->
+    <!-- TAB 3: FORZA HORIZON 5 UDP DATA OUT & PYTHON BRIDGE               -->
+    <!-- ================================================================= -->
+    <section id="sectionConn" class="space-y-4 hidden">
+      
+      <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div>
+          <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            Прямое подключение к Forza Horizon 5 (UDP Data Out)
+          </h2>
+          <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+            В Forza Horizon 5 встроена функция трансляции телеметрии по UDP на порт 5300 (скорость колес, обороты двигателя, перегрузки G, температура шин). Запустите на ПК мост в 15 строк для моментальной синхронизации спидометров с игрой!
+          </p>
+        </div>
 
-      <button id="gasBtn" class="py-4 bg-gradient-to-t from-yellow-600 to-yellow-500 active:from-yellow-400 active:to-yellow-300 border border-yellow-400 rounded-2xl font-hud font-black text-sm tracking-wider text-black transition flex flex-col items-center justify-center shadow-lg active:scale-98">
-        <span>ГАЗ В ПОЛ</span>
-        <span class="text-[10px] font-mono opacity-80 uppercase">Boost / Throttle</span>
-      </button>
-    </div>
-  </main>
+        <!-- 3 Setup Steps -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <span class="font-hud font-bold text-brand-600 text-sm">ШАГ 1</span>
+            <h4 class="font-bold text-slate-900 mt-1 mb-1.5">Включить в игре</h4>
+            <p class="text-slate-600 leading-relaxed text-[11px]">
+              В FH5 откройте: <b>Настройки</b> &gt; <b>Экран и игра (HUD)</b> &gt; прокрутите вниз до параметра <b>Data Out</b>: установите значение <b>ВКЛ</b>.
+            </p>
+          </div>
 
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <span class="font-hud font-bold text-brand-600 text-sm">ШАГ 2</span>
+            <h4 class="font-bold text-slate-900 mt-1 mb-1.5">Сетевые данные</h4>
+            <p class="text-slate-600 leading-relaxed text-[11px]">
+              <b>IP-адрес:</b> 127.0.0.1 (или IP вашего ПК в локальной сети, если телефон в том же Wi-Fi).<br>
+              <b>Порт:</b> 5300.
+            </p>
+          </div>
+
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <span class="font-hud font-bold text-brand-600 text-sm">ШАГ 3</span>
+            <h4 class="font-bold text-slate-900 mt-1 mb-1.5">Запуск моста</h4>
+            <p class="text-slate-600 leading-relaxed text-[11px]">
+              Запустите скрипт Python на ПК и нажмите кнопку «Подключить» ниже — спидометры сразу подхватят живые данные из Forza!
+            </p>
+          </div>
+        </div>
+
+        <!-- Connection Settings -->
+        <div class="bg-brand-50/80 border border-brand-200 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-3">
+          <div class="w-full md:w-auto">
+            <label class="block text-[11px] font-bold text-brand-900 uppercase">Адрес WebSocket моста</label>
+            <input type="text" id="wsInputUrl" value="ws://localhost:5300" class="mt-1 bg-white border border-brand-200 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-800 outline-none w-full md:w-72">
+          </div>
+          <div class="flex gap-2 w-full md:w-auto">
+            <button onclick="connectLiveWs()" class="flex-1 md:flex-initial bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md shadow-brand-500/20">
+              Подключить к FH5
+            </button>
+            <button onclick="disconnectLiveWs()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition">
+              Отключить
+            </button>
+          </div>
+        </div>
+
+        <!-- Python Bridge Code -->
+        <div>
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="text-xs font-bold text-slate-700">Скрипт Python UDP-to-WebSocket (bridge.py)</span>
+            <button onclick="copyPythonCode()" class="text-xs font-bold text-brand-600 hover:underline">
+              📋 Скопировать код скрипта
+            </button>
+          </div>
+          <pre class="bg-slate-900 text-slate-200 p-4 rounded-xl text-[11px] font-mono overflow-x-auto leading-relaxed max-h-56"><code id="pythonCodeSnippet">import socket, struct, asyncio, websockets, json
+
+# Слушаем порт 5300 от Forza Horizon 5
+udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+udp_sock.bind(("0.0.0.0", 5300))
+udp_sock.setblocking(False)
+
+clients = set()
+
+async def ws_handler(ws):
+    clients.add(ws)
+    try:
+        await ws.wait_closed()
+    finally:
+        clients.remove(ws)
+
+async def telemetry_loop():
+    loop = asyncio.get_event_loop()
+    while True:
+        try:
+            data, _ = await loop.sock_recv(udp_sock, 1024)
+            if len(data) >= 312:
+                # Извлечение скорости, оборотов и передачи из пакета FH5
+                speed = struct.unpack('<f', data[244:248])[0] * 3.6 # м/с в км/ч
+                rpm = struct.unpack('<f', data[16:20])[0]
+                gear = data[311]
+                payload = json.dumps({"speed": round(speed), "rpm": round(rpm), "gear": int(gear)})
+                if clients:
+                    await asyncio.gather(*[c.send(payload) for c in clients])
+        except Exception:
+            pass
+        await asyncio.sleep(0.01)
+
+async def main():
+    async with websockets.serve(ws_handler, "0.0.0.0", 5300):
+        await telemetry_loop()
+
+if __name__ == "__main__":
+    print("FH5 Телеметрия: Мост запущен на порту 5300!")
+    asyncio.run(main())</code></pre>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <!-- JAVASCRIPT APPLICATION CORE & 500+ CARS DATABASE -->
   <script>
-    // Telegram Mini App Initialization
+    // --- Telegram Mini App SDK Integration ---
     if (window.Telegram && window.Telegram.WebApp) {
       window.Telegram.WebApp.ready();
       window.Telegram.WebApp.expand();
     }
 
-    // --- Tab Navigation ---
-    function switchTab(tab) {
-      const isTune = tab === 'tune';
-      document.getElementById('tabTune').classList.toggle('hidden', !isTune);
-      document.getElementById('tabCluster').classList.toggle('hidden', isTune);
-      document.getElementById('tabBtnTune').className = isTune 
-        ? 'px-3 py-1 text-xs font-bold rounded bg-yellow-500 text-black transition'
-        : 'px-3 py-1 text-xs font-bold rounded text-zinc-400 hover:text-white transition';
-      document.getElementById('tabBtnCluster').className = !isTune 
-        ? 'px-3 py-1 text-xs font-bold rounded bg-yellow-500 text-black transition'
-        : 'px-3 py-1 text-xs font-bold rounded text-zinc-400 hover:text-white transition';
+    function triggerHaptic(type = 'impact') {
+      try {
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+          if (type === 'impact') window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+          if (type === 'heavy') window.Telegram.WebApp.HapticFeedback.impactOccurred('heavy');
+        }
+      } catch (e) {}
     }
 
-    // --- Web Audio Motor Synthesizer ---
-    let audioCtx = null;
-    let osc = null;
-    let gainNode = null;
+    function showToast(msg, icon = '✓') {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').innerText = msg;
+      document.getElementById('toastIcon').innerText = icon;
+      toast.classList.remove('opacity-0', 'pointer-events-none', '-translate-y-2');
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none', '-translate-y-2');
+      }, 2400);
+    }
 
-    function initAudio() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        osc = audioCtx.createOscillator();
-        gainNode = audioCtx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(80, audioCtx.currentTime);
-        gainNode.gain.setValueAtTime(0.001, audioCtx.currentTime);
-        osc.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        osc.start();
+    function setTab(tab) {
+      document.getElementById('sectionTune').classList.toggle('hidden', tab !== 'tune');
+      document.getElementById('sectionCluster').classList.toggle('hidden', tab !== 'cluster');
+      document.getElementById('sectionConn').classList.toggle('hidden', tab !== 'conn');
+
+      const tabs = ['tune', 'cluster', 'conn'];
+      tabs.forEach(t => {
+        const btn = document.getElementById('nav' + t.charAt(0).toUpperCase() + t.slice(1));
+        if (t === tab) {
+          btn.className = "px-3 py-1.5 rounded-lg bg-white text-brand-700 shadow-sm transition font-bold";
+        } else {
+          btn.className = "px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition";
+        }
+      });
+      triggerHaptic('impact');
+    }
+
+    // =================================================================
+    // 500+ CARS DATABASE COMPACT GENERATOR & ROSTER
+    // =================================================================
+    // Tuple Schema: [Make, Model, Year, Class, Score, Drive, Weight, FrontDist, HP, Category, Aliases, Engine]
+    const RAW_ROSTER = [
+      // JDM & Japanese Performance
+      ["Toyota", "Supra RZ", 1998, "A", 780, "RWD", 1490, 53, 326, "jdm", "supra rz 2jz mk4", "3.0L Twin-Turbo I6 2JZ"],
+      ["Toyota", "GR Supra", 2020, "A", 790, "RWD", 1520, 51, 382, "jdm", "gr supra a90 mk5", "3.0L Turbo I6 B58"],
+      ["Toyota", "GR Yaris", 2021, "B", 695, "AWD", 1280, 58, 257, "rally", "gr yaris rally gazoo", "1.6L Turbo I3 G16E"],
+      ["Toyota", "GR86", 2022, "B", 650, "RWD", 1275, 53, 228, "jdm", "gr86 gt86 boxer", "2.4L Naturally Aspirated Boxer"],
+      ["Toyota", "Sprinter Trueno AE86", 1985, "D", 480, "RWD", 940, 53, 128, "jdm", "ae86 hachi roku tofu initial d", "1.6L Twin Cam 4A-GE"],
+      ["Toyota", "Corolla Levin AE86", 1985, "D", 475, "RWD", 950, 53, 128, "jdm", "levin ae86", "1.6L Twin Cam 4A-GE"],
+      ["Toyota", "Celica GT-Four ST205", 1994, "B", 640, "AWD", 1380, 59, 239, "rally", "st205 celica gt-four", "2.0L Turbo I4 3S-GTE"],
+      ["Toyota", "Celica GT-Four ST185", 1992, "B", 615, "AWD", 1460, 60, 200, "rally", "st185 celica carlos sainz", "2.0L Turbo I4 3S-GTE"],
+      ["Toyota", "MR2 GT", 1995, "B", 630, "RWD", 1260, 42, 241, "jdm", "mr2 sw20 turbo mid engine", "2.0L Turbo I4 3S-GTE"],
+      ["Toyota", "MR2 SC", 1989, "C", 540, "RWD", 1080, 44, 145, "jdm", "mr2 aw11 supercharged", "1.6L Supercharged 4A-GZE"],
+      ["Toyota", "Chaser JZX100", 1998, "B", 660, "RWD", 1470, 54, 276, "jdm", "chaser tourer v jzx100 1jz", "2.5L Single Turbo 1JZ-GTE"],
+      ["Toyota", "Soarer 2.5 GT-T", 1997, "B", 655, "RWD", 1560, 54, 276, "jdm", "soarer jzz30 1jz", "2.5L Twin-Turbo 1JZ-GTE"],
+      ["Toyota", "2000GT", 1967, "C", 520, "RWD", 1120, 51, 148, "retro", "2000gt bond classic", "2.0L Naturally Aspirated I6"],
+      ["Toyota", "Land Cruiser Arctic AT37", 2016, "C", 580, "AWD", 2700, 52, 381, "offroad", "land cruiser arctic trucks at37", "5.7L V8 3UR-FE"],
+      ["Toyota", "Hilux Arctic AT38", 2007, "C", 550, "AWD", 2200, 54, 171, "offroad", "hilux arctic top gear", "3.0L Turbo Diesel D-4D"],
+      ["Toyota", "Tacoma TRD Pro", 2019, "C", 560, "AWD", 2015, 56, 278, "offroad", "tacoma trd pro truck", "3.5L V6 VVT-iW"],
+
+      ["Nissan", "Skyline GT-R V-Spec II (R34)", 2002, "A", 785, "AWD", 1560, 55, 327, "jdm", "r34 skyline gtr godzilla rb26", "2.6L Twin-Turbo I6 RB26DETT"],
+      ["Nissan", "GT-R Nismo (R35)", 2020, "S1", 890, "AWD", 1725, 54, 600, "jdm", "r35 nismo gtr godzilla vr38", "3.8L Twin-Turbo V6 VR38DETT"],
+      ["Nissan", "Skyline GT-R (R32)", 1993, "B", 685, "AWD", 1430, 56, 276, "jdm", "r32 skyline gtr godzilla", "2.6L Twin-Turbo I6 RB26DETT"],
+      ["Nissan", "Skyline GT-R V-Spec (R33)", 1997, "A", 710, "AWD", 1530, 55, 276, "jdm", "r33 skyline gtr", "2.6L Twin-Turbo I6 RB26DETT"],
+      ["Nissan", "Silvia Spec-R (S15)", 2000, "B", 640, "RWD", 1240, 54, 247, "jdm", "s15 silvia mona lisa sr20", "2.0L Turbo I4 SR20DET"],
+      ["Nissan", "Silvia K's Aero (S14)", 1998, "C", 595, "RWD", 1250, 54, 217, "jdm", "s14 silvia kouki zenki", "2.0L Turbo I4 SR20DET"],
+      ["Nissan", "Silvia Club K's (S13)", 1992, "C", 575, "RWD", 1220, 54, 202, "jdm", "s13 silvia ps13", "2.0L Turbo I4 SR20DET"],
+      ["Nissan", "180SX Type X", 1996, "C", 585, "RWD", 1220, 53, 202, "jdm", "180sx rps13 pop up", "2.0L Turbo I4 SR20DET"],
+      ["Nissan", "240SX SE", 1993, "D", 495, "RWD", 1240, 54, 155, "jdm", "240sx s13 usdm", "2.4L I4 KA24DE"],
+      ["Nissan", "Fairlady Z 432", 1969, "C", 535, "RWD", 1040, 52, 158, "jdm", "s30 240z fairlady z432 s20", "2.0L Twin Cam I6 S20"],
+      ["Nissan", "370Z Nismo", 2019, "A", 725, "RWD", 1570, 53, 350, "jdm", "370z nismo z34", "3.7L Naturally Aspirated V6 VQ37"],
+      ["Nissan", "350Z", 2003, "B", 655, "RWD", 1460, 53, 287, "jdm", "350z z33 fairlady", "3.5L Naturally Aspirated V6 VQ35"],
+      ["Nissan", "300ZX Twin Turbo", 1994, "B", 650, "RWD", 1575, 54, 300, "jdm", "300zx z32 twin turbo vg30", "3.0L Twin-Turbo V6 VG30DETT"],
+      ["Nissan", "R390 GT1", 1998, "S1", 860, "RWD", 1029, 44, 550, "supercars", "r390 lemans homologation", "3.5L Twin-Turbo V8 VRH35L"],
+      ["Nissan", "Pulsar GTI-R", 1990, "B", 635, "AWD", 1220, 60, 227, "rally", "pulsar gti-r baby godzilla", "2.0L Turbo I4 SR20DET"],
+      ["Nissan", "Stagea 260RS Autech", 1998, "A", 715, "AWD", 1680, 56, 276, "jdm", "stagea autech 260rs wagon gtr", "2.6L Twin-Turbo I6 RB26DETT"],
+      ["Nissan", "Z Performance", 2023, "A", 750, "RWD", 1600, 54, 400, "jdm", "nissan z 400z vr30", "3.0L Twin-Turbo V6 VR30DDTT"],
+      ["Nissan", "Tsuru", 2010, "D", 280, "FWD", 970, 62, 105, "retro", "tsuru sentra b13 taxi", "1.6L 16V I4 GA16DNE"],
+      ["Nissan", "Patrol Super Safari", 2016, "C", 530, "AWD", 2470, 53, 275, "offroad", "patrol super safari tb48", "4.8L I6 TB48DE"],
+
+      ["Honda", "NSX-R", 1992, "A", 740, "RWD", 1230, 42, 276, "jdm", "nsx nsx-r senna vtec na1", "3.0L V6 VTEC C30A"],
+      ["Honda", "NSX-R GT", 2005, "A", 770, "RWD", 1270, 42, 276, "jdm", "nsx-r gt snorkel na2", "3.2L V6 VTEC C32B"],
+      ["Honda", "S2000 CR", 2009, "B", 670, "RWD", 1255, 50, 237, "jdm", "s2000 cr s2k ap2 9000", "2.2L High-Rev I4 F22C1"],
+      ["Honda", "Civic Type R (FK8)", 2018, "A", 730, "FWD", 1380, 62, 306, "jdm", "civic fk8 type r k20c1", "2.0L Turbo I4 K20C1"],
+      ["Honda", "Civic Type R (EK9)", 1997, "C", 575, "FWD", 1070, 61, 182, "jdm", "civic ek9 type r b16b", "1.6L Naturally Aspirated I4 B16B"],
+      ["Honda", "Civic Type R (EP3)", 2004, "C", 595, "FWD", 1204, 62, 197, "jdm", "civic ep3 type r k20a2", "2.0L Naturally Aspirated I4 K20A2"],
+      ["Honda", "Civic Type R (FD2)", 2007, "B", 645, "FWD", 1260, 60, 222, "jdm", "civic fd2 sedan type r", "2.0L Naturally Aspirated I4 K20A"],
+      ["Honda", "Civic Type R (FL5)", 2023, "A", 755, "FWD", 1430, 62, 315, "jdm", "civic fl5 type r new", "2.0L Turbo I4 K20C1"],
+      ["Honda", "Integra Type R (DC2)", 2000, "C", 590, "FWD", 1145, 62, 195, "jdm", "integra dc2 type r b18c", "1.8L Naturally Aspirated I4 B18C5"],
+      ["Honda", "Civic CRX SiR", 1991, "D", 490, "FWD", 970, 62, 158, "jdm", "crx sir vtec b16a", "1.6L DOHC VTEC B16A"],
+
+      ["Mazda", "RX-7 Spirit R Type-A", 2002, "B", 695, "RWD", 1270, 50, 276, "jdm", "rx7 fd fd3s spirit r rotary 13b", "1.3L Twin-Turbo Rotary 13B-REW"],
+      ["Mazda", "RX-7 Turbo II (FC)", 1990, "C", 580, "RWD", 1300, 51, 200, "jdm", "rx7 fc fc3s rotary", "1.3L Turbo Rotary 13B"],
+      ["Mazda", "RX-7 Savanna", 1985, "D", 480, "RWD", 1020, 52, 135, "jdm", "rx7 fb savanna", "1.1L Rotary 12A"],
+      ["Mazda", "RX-8 R3", 2011, "C", 590, "RWD", 1370, 50, 232, "jdm", "rx8 renesis rotary r3", "1.3L Twin-Rotor Renesis"],
+      ["Mazda", "MX-5 Miata (NA)", 1994, "C", 550, "RWD", 990, 50, 128, "jdm", "miata na pop up mx5", "1.8L DOHC I4 BP-ZE"],
+      ["Mazda", "MX-5 Club (ND)", 2016, "C", 585, "RWD", 1058, 50, 155, "jdm", "miata nd mx5 skyactiv", "2.0L SkyActiv-G I4"],
+      ["Mazda", "Mazdaspeed 3", 2010, "B", 630, "FWD", 1460, 61, 263, "jdm", "mazdaspeed 3 mps turbo", "2.3L Turbo DISI I4 MZR"],
+
+      ["Mitsubishi", "Lancer Evo IX MR", 2006, "B", 690, "AWD", 1400, 58, 286, "jdm", "evo 9 evo ix mr 4g63", "2.0L Turbo I4 4G63 MIVEC"],
+      ["Mitsubishi", "Lancer Evo X GSR", 2008, "B", 680, "AWD", 1540, 57, 295, "jdm", "evo 10 evo x 4b11t", "2.0L Turbo I4 4B11T"],
+      ["Mitsubishi", "Lancer Evo VIII MR", 2004, "B", 685, "AWD", 1410, 58, 276, "jdm", "evo 8 evo viii mr", "2.0L Turbo I4 4G63"],
+      ["Mitsubishi", "Lancer Evo VI GSR", 1999, "B", 670, "AWD", 1360, 58, 276, "rally", "evo 6 tommi makinen tme", "2.0L Turbo I4 4G63"],
+      ["Mitsubishi", "GTO Twin Turbo", 1997, "B", 645, "AWD", 1710, 57, 320, "jdm", "gto 3000gt vr4 twin turbo", "3.0L Twin-Turbo V6 6G72"],
+      ["Mitsubishi", "Eclipse GSX", 1995, "C", 575, "AWD", 1445, 59, 210, "jdm", "eclipse gsx f&f paul walker", "2.0L Turbo I4 4G63T"],
+      ["Mitsubishi", "Galant VR-4", 1992, "C", 565, "AWD", 1450, 59, 195, "rally", "galant vr4 rally homologation", "2.0L Turbo I4 4G63"],
+
+      ["Subaru", "Impreza 22B STi", 1998, "B", 675, "AWD", 1270, 56, 276, "jdm", "22b sti impreza colin mcrae", "2.2L Turbo Boxer EJ22G"],
+      ["Subaru", "WRX STI", 2015, "A", 710, "AWD", 1535, 58, 305, "jdm", "wrx sti ej25", "2.5L Turbo Boxer EJ257"],
+      ["Subaru", "Impreza WRX STi (Blobeye)", 2004, "B", 680, "AWD", 1470, 57, 300, "jdm", "blobeye sti impreza", "2.5L Turbo Boxer EJ257"],
+      ["Subaru", "Impreza WRX STi (Hawkeye)", 2005, "B", 685, "AWD", 1490, 57, 300, "jdm", "hawkeye sti impreza", "2.5L Turbo Boxer EJ257"],
+      ["Subaru", "WRX STI S209", 2019, "A", 745, "AWD", 1580, 58, 341, "jdm", "s209 sti widebody", "2.5L Turbo Boxer EJ257"],
+      ["Subaru", "BRZ", 2022, "B", 650, "RWD", 1277, 53, 228, "jdm", "brz gr86 fa24", "2.4L Naturally Aspirated Boxer"],
+
+      // Hypercars & High Exotics
+      ["Koenigsegg", "Jesko", 2020, "S2", 998, "RWD", 1420, 44, 1600, "hypercars", "jesko 300mph koenigsegg", "5.0L Twin-Turbo Flat-Plane V8"],
+      ["Koenigsegg", "Agera RS", 2017, "S2", 996, "RWD", 1395, 44, 1341, "hypercars", "agera rs record top speed", "5.0L Twin-Turbo V8 1MW"],
+      ["Koenigsegg", "One:1", 2014, "S2", 998, "RWD", 1360, 44, 1341, "hypercars", "one:1 megacar 1:1 ratio", "5.0L Twin-Turbo V8"],
+      ["Koenigsegg", "Regera", 2016, "S2", 975, "RWD", 1590, 43, 1500, "hypercars", "regera direct drive hybrid", "5.0L Twin-Turbo V8 Hybrid"],
+      ["Koenigsegg", "CC8S", 2002, "S1", 860, "RWD", 1175, 42, 654, "hypercars", "cc8s christian koenigsegg", "4.7L Supercharged V8"],
+      ["Koenigsegg", "CCGT", 2008, "S2", 975, "RWD", 1100, 43, 600, "track", "ccgt gt1 race car", "5.0L Race V8"],
+
+      ["Bugatti", "Chiron", 2018, "S2", 980, "AWD", 1995, 45, 1479, "hypercars", "chiron w16 quad turbo", "8.0L Quad-Turbo W16"],
+      ["Bugatti", "Divo", 2019, "S2", 990, "AWD", 1960, 45, 1479, "hypercars", "divo aero handling bugatti", "8.0L Quad-Turbo W16"],
+      ["Bugatti", "Veyron Super Sport", 2011, "S2", 955, "AWD", 1888, 45, 1183, "hypercars", "veyron ss top speed", "8.0L Quad-Turbo W16"],
+      ["Bugatti", "EB110 Super Sport", 1992, "S1", 850, "AWD", 1418, 43, 603, "hypercars", "eb110 ss quad turbo v12", "3.5L Quad-Turbo 60V V12"],
+
+      ["Rimac", "Nevera", 2021, "S2", 995, "AWD", 2150, 48, 1914, "electric", "nevera rimac 1.4mw ev", "Quad Electric Motors 1.4MW"],
+      ["Rimac", "Concept Two", 2019, "S2", 990, "AWD", 2050, 48, 1887, "electric", "c_two concept two ev", "Quad Electric Motors"],
+
+      ["McLaren", "Senna", 2018, "S2", 998, "RWD", 1198, 41, 789, "track", "senna mclaren track downforce", "4.0L Twin-Turbo V8 M840TR"],
+      ["McLaren", "P1", 2013, "S2", 960, "RWD", 1490, 43, 903, "hypercars", "p1 holy trinity hybrid", "3.8L Twin-Turbo V8 Hybrid"],
+      ["McLaren", "Speedtail", 2019, "S2", 975, "RWD", 1430, 43, 1036, "hypercars", "speedtail 3 seat hyper gt", "4.0L Twin-Turbo V8 Hybrid"],
+      ["McLaren", "765LT", 2021, "S2", 980, "RWD", 1339, 42, 755, "supercars", "765lt longtail mclaren", "4.0L Twin-Turbo V8 M840T"],
+      ["McLaren", "720S Coupe", 2018, "S2", 940, "RWD", 1419, 42, 710, "supercars", "720s super series", "4.0L Twin-Turbo V8 M840T"],
+      ["McLaren", "F1", 1993, "S1", 880, "RWD", 1138, 42, 618, "hypercars", "f1 gordon murray gold v12", "6.1L Naturally Aspirated V12 BMW S70/2"],
+      ["McLaren", "F1 GT", 1997, "S1", 895, "RWD", 1120, 42, 627, "hypercars", "f1 gt longtail homologation", "6.1L Naturally Aspirated V12 BMW"],
+      ["McLaren", "Artura", 2022, "S1", 890, "RWD", 1498, 42, 671, "supercars", "artura hybrid v6 mclaren", "3.0L Twin-Turbo V6 Hybrid"],
+
+      ["Aston Martin", "Valkyrie", 2022, "S2", 998, "RWD", 1030, 43, 1160, "track", "valkyrie adrian newey cosworth f1", "6.5L NA V12 Cosworth 11k RPM"],
+      ["Aston Martin", "Valhalla Concept", 2019, "S2", 985, "AWD", 1450, 45, 937, "hypercars", "valhalla amg v8 hybrid", "4.0L Twin-Turbo V8 Hybrid"],
+      ["Aston Martin", "Vulcan AMR Pro", 2017, "S2", 998, "RWD", 1350, 47, 820, "track", "vulcan amr pro track monster", "7.0L Naturally Aspirated V12"],
+      ["Aston Martin", "One-77", 2010, "S1", 870, "RWD", 1630, 49, 750, "hypercars", "one-77 cosworth v12 carbon", "7.3L Naturally Aspirated V12 Cosworth"],
+      ["Aston Martin", "DBS Superleggera", 2019, "S1", 860, "RWD", 1693, 51, 715, "supercars", "dbs superleggera twin turbo v12", "5.2L Twin-Turbo V12"],
+      ["Aston Martin", "DB5", 1964, "D", 490, "RWD", 1465, 52, 282, "retro", "db5 james bond 007", "4.0L Naturally Aspirated I6"],
+
+      ["Pagani", "Huayra BC", 2016, "S2", 970, "RWD", 1218, 43, 789, "hypercars", "huayra bc amg v12", "6.0L Twin-Turbo V12 AMG"],
+      ["Pagani", "Zonda R", 2010, "S2", 990, "RWD", 1070, 43, 740, "track", "zonda r amg v12 scream nurburgring", "6.0L High-Rev V12 AMG"],
+      ["Pagani", "Zonda Cinque Roadster", 2009, "S2", 940, "RWD", 1210, 43, 669, "hypercars", "zonda cinque carbo-titanium", "7.3L Naturally Aspirated V12 AMG"],
+
+      ["Hennessey", "Venom F5", 2021, "S2", 998, "RWD", 1360, 42, 1817, "hypercars", "venom f5 300mph fury", "6.6L Twin-Turbo V8 Fury"],
+      ["Hennessey", "Venom GT", 2012, "S2", 975, "RWD", 1244, 43, 1244, "hypercars", "venom gt lotus chassis", "7.0L Twin-Turbo V8 LS7"],
+
+      ["Mercedes-AMG", "ONE", 2021, "S2", 998, "AWD", 1695, 47, 1049, "hypercars", "amg one f1 engine lewis hamilton", "1.6L Turbo V6 F1 Hybrid 11k RPM"],
+      ["Mercedes-AMG", "GT Black Series", 2021, "S2", 940, "RWD", 1540, 47, 720, "track", "gt black series flat plane", "4.0L Twin-Turbo Flat-Plane V8"],
+      ["Mercedes-AMG", "GT R", 2017, "S1", 870, "RWD", 1630, 47, 577, "supercars", "gt r beast of the green hell", "4.0L Twin-Turbo V8 M178"],
+      ["Mercedes-AMG", "C63 AMG Black Series", 2012, "A", 785, "RWD", 1710, 54, 510, "muscle", "c63 black series m156 6.2", "6.2L Naturally Aspirated V8 M156"],
+      ["Mercedes-AMG", "SLS AMG", 2011, "S1", 830, "RWD", 1620, 47, 563, "supercars", "sls amg gullwing m159", "6.2L Naturally Aspirated V8 M159"],
+      ["Mercedes-Benz", "CLK GTR", 1998, "S1", 895, "RWD", 1440, 44, 604, "supercars", "clk gtr gt1 homologation", "6.9L Naturally Aspirated V12 M120"],
+      ["Mercedes-Benz", "190E 2.5-16 Evolution II", 1990, "B", 650, "RWD", 1340, 53, 232, "track", "190e evo 2 dtm cosworth", "2.5L 16V I4 Cosworth"],
+      ["Mercedes-Benz", "300 SL Gullwing", 1954, "C", 520, "RWD", 1295, 49, 215, "retro", "300 sl gullwing direct injection", "3.0L Naturally Aspirated I6 M198"],
+
+      // Porsche
+      ["Porsche", "911 GT3 RS (992)", 2023, "S1", 895, "RWD", 1450, 39, 518, "track", "gt3 rs 992 aero drs", "4.0L Naturally Aspirated Flat-6 9k RPM"],
+      ["Porsche", "911 GT3 (992)", 2021, "S1", 880, "RWD", 1435, 39, 502, "track", "gt3 992 double wishbone", "4.0L Naturally Aspirated Flat-6"],
+      ["Porsche", "911 GT2 RS (991)", 2018, "S2", 940, "RWD", 1470, 38, 700, "track", "gt2 rs widowmaker 991 nurburgring", "3.8L Twin-Turbo Flat-6"],
+      ["Porsche", "Carrera GT", 2003, "S1", 840, "RWD", 1380, 42, 603, "supercars", "carrera gt v10 clutch scream", "5.7L Naturally Aspirated 68° V10"],
+      ["Porsche", "918 Spyder", 2014, "S2", 975, "AWD", 1675, 43, 887, "hypercars", "918 spyder holy trinity hybrid", "4.6L Naturally Aspirated V8 Hybrid"],
+      ["Porsche", "911 GT1 Strassenversion", 1998, "S1", 890, "RWD", 1150, 42, 536, "supercars", "gt1 lemans homologation 996", "3.2L Twin-Turbo Flat-6"],
+      ["Porsche", "911 Turbo S (992)", 2020, "S1", 885, "AWD", 1640, 38, 640, "supercars", "turbo s 992 0-60 rocket", "3.7L Twin-Turbo Flat-6"],
+      ["Porsche", "718 Cayman GT4 RS", 2022, "S1", 870, "RWD", 1415, 44, 493, "track", "gt4 rs 718 airbox intakes", "4.0L Naturally Aspirated Flat-6 9k RPM"],
+      ["Porsche", "959", 1987, "S1", 810, "AWD", 1450, 42, 444, "supercars", "959 group b sequential turbo", "2.8L Twin-Turbo Flat-6"],
+      ["Porsche", "911 Carrera RS 2.7", 1973, "C", 590, "RWD", 960, 40, 210, "retro", "carrera rs 2.7 ducktail", "2.7L Naturally Aspirated Flat-6"],
+      ["Porsche", "Taycan Turbo S", 2020, "S1", 860, "AWD", 2295, 49, 750, "electric", "taycan turbo s ev 800v", "Dual Permanent Magnet Electric Motors"],
+
+      // Ferrari
+      ["Ferrari", "SF90 Stradale", 2020, "S2", 985, "AWD", 1570, 45, 986, "hypercars", "sf90 stradale 1000hp hybrid", "4.0L Twin-Turbo V8 PHEV"],
+      ["Ferrari", "LaFerrari", 2013, "S2", 970, "RWD", 1430, 41, 949, "hypercars", "laferrari hy-kers v12", "6.3L Naturally Aspirated V12 HY-KERS"],
+      ["Ferrari", "488 Pista", 2019, "S2", 935, "RWD", 1385, 42, 710, "supercars", "488 pista s-duct v8", "3.9L Twin-Turbo V8 F154"],
+      ["Ferrari", "F8 Tributo", 2020, "S2", 930, "RWD", 1435, 42, 710, "supercars", "f8 tributo ferrari", "3.9L Twin-Turbo V8 F154"],
+      ["Ferrari", "458 Speciale", 2013, "S1", 895, "RWD", 1395, 42, 597, "track", "458 speciale na v8 scream 9k", "4.5L Naturally Aspirated V8 9k RPM"],
+      ["Ferrari", "458 Italia", 2009, "S1", 860, "RWD", 1485, 42, 562, "supercars", "458 italia pininfarina", "4.5L Naturally Aspirated V8"],
+      ["Ferrari", "FXX K Evo", 2018, "S2", 998, "RWD", 1255, 41, 1036, "track", "fxxk evo track xx programme", "6.3L Naturally Aspirated V12 KERS"],
+      ["Ferrari", "599XX Evolution", 2012, "S2", 998, "RWD", 1310, 47, 740, "track", "599xx evo fh4 meta top speed", "6.0L Naturally Aspirated V12"],
+      ["Ferrari", "Enzo Ferrari", 2002, "S1", 890, "RWD", 1365, 44, 651, "hypercars", "enzo ferrari f1 carbon", "6.0L Naturally Aspirated V12 F140"],
+      ["Ferrari", "F50", 1995, "S1", 820, "RWD", 1230, 42, 513, "hypercars", "f50 f1 v12 chassis structural", "4.7L Naturally Aspirated 65° V12 F130"],
+      ["Ferrari", "F40 Competizione", 1989, "S1", 890, "RWD", 1050, 43, 691, "track", "f40 competizione lm race", "2.9L Twin-Turbo V8 Tipo F120"],
+      ["Ferrari", "F40", 1987, "S1", 825, "RWD", 1100, 43, 471, "supercars", "f40 enzo 200mph boost", "2.9L Twin-Turbo V8 Tipo F120"],
+      ["Ferrari", "288 GTO", 1984, "A", 770, "RWD", 1160, 44, 395, "supercars", "288 gto group b homologation", "2.8L Twin-Turbo V8 Tipo F114"],
+      ["Ferrari", "812 Superfast", 2017, "S1", 885, "RWD", 1630, 47, 789, "supercars", "812 superfast v12 front mid", "6.5L Naturally Aspirated V12 8.5k RPM"],
+      ["Ferrari", "F12tdf", 2015, "S2", 910, "RWD", 1520, 46, 769, "supercars", "f12tdf tour de france rear steer", "6.3L Naturally Aspirated V12"],
+      ["Ferrari", "250 GTO", 1962, "B", 680, "RWD", 880, 48, 296, "retro", "250 gto most expensive classic", "3.0L Naturally Aspirated Colombo V12"],
+      ["Ferrari", "Daytona SP3", 2022, "S2", 965, "RWD", 1485, 44, 829, "hypercars", "daytona sp3 icona targa", "6.5L Naturally Aspirated V12 F140HC"],
+
+      // Lamborghini
+      ["Lamborghini", "Sesto Elemento", 2011, "S2", 998, "AWD", 999, 43, 562, "track", "sesto elemento sub 1000kg carbon", "5.2L Naturally Aspirated Odd-Fire V10"],
+      ["Lamborghini", "Aventador SVJ", 2019, "S2", 930, "AWD", 1525, 43, 759, "supercars", "svj aventador ala aero nurburgring", "6.5L Naturally Aspirated V12 L539"],
+      ["Lamborghini", "Huracán Performante", 2018, "S1", 895, "AWD", 1382, 43, 631, "track", "huracan performante forged carbon ala", "5.2L Naturally Aspirated V10"],
+      ["Lamborghini", "Huracán STO", 2020, "S1", 898, "RWD", 1339, 41, 631, "track", "sto huracan super trofeo omologata", "5.2L Naturally Aspirated V10"],
+      ["Lamborghini", "Centenario LP 770-4", 2016, "S2", 950, "AWD", 1520, 43, 759, "hypercars", "centenario cover car fh3", "6.5L Naturally Aspirated V12"],
+      ["Lamborghini", "Veneno", 2013, "S2", 960, "AWD", 1450, 43, 740, "hypercars", "veneno prototype hypercar", "6.5L Naturally Aspirated V12"],
+      ["Lamborghini", "Sián FKP 37", 2020, "S2", 975, "AWD", 1595, 43, 808, "hypercars", "sian supercapacitor hybrid v12", "6.5L V12 + 48V Supercapacitor"],
+      ["Lamborghini", "Countach LPI 800-4", 2021, "S2", 970, "AWD", 1595, 43, 803, "hypercars", "countach modern remake sian", "6.5L V12 Hybrid"],
+      ["Lamborghini", "Countach LP5000 QV", 1988, "A", 745, "RWD", 1490, 42, 449, "retro", "countach qv 80s poster scissor doors", "5.2L Naturally Aspirated 48V V12"],
+      ["Lamborghini", "Diablo SV", 1997, "A", 775, "RWD", 1530, 43, 510, "supercars", "diablo sv pop up nfs", "5.7L Naturally Aspirated V12"],
+      ["Lamborghini", "Murciélago LP670-4 SV", 2010, "S1", 880, "AWD", 1565, 43, 661, "supercars", "murcielago sv v12 gated manual", "6.5L Naturally Aspirated V12"],
+      ["Lamborghini", "Gallardo LP570-4 Squadra Corse", 2014, "S1", 860, "AWD", 1340, 43, 562, "track", "gallardo squadra corse superleggera", "5.2L Naturally Aspirated V10"],
+      ["Lamborghini", "Miura P400 SV", 1971, "B", 650, "RWD", 1245, 44, 380, "retro", "miura first supercar transverse v12", "3.9L Transverse Naturally Aspirated V12"],
+      ["Lamborghini", "Urus", 2019, "A", 790, "AWD", 2200, 55, 641, "offroad", "urus super suv twin turbo", "4.0L Twin-Turbo V8"],
+      ["Lamborghini", "LM002", 1986, "C", 540, "AWD", 2700, 52, 444, "offroad", "lm002 rambo lambo countach v12 truck", "5.2L Naturally Aspirated Countach V12"],
+
+      // Euro Performance (BMW, Audi)
+      ["BMW", "M3 GTR (E46)", 2002, "A", 790, "RWD", 1350, 50, 380, "track", "m3 gtr e46 nfs most wanted p60", "4.0L Naturally Aspirated Race V8 P60B40"],
+      ["BMW", "M4 GTS", 2016, "S1", 820, "RWD", 1510, 52, 493, "track", "m4 gts water injection f82", "3.0L Twin-Turbo I6 S55 Water-Injected"],
+      ["BMW", "M4 Competition", 2021, "S1", 825, "RWD", 1725, 52, 503, "supercars", "m4 g82 competition s58", "3.0L Twin-Turbo I6 S58"],
+      ["BMW", "M3 Competition", 2021, "S1", 820, "RWD", 1730, 52, 503, "supercars", "m3 g80 sedan s58", "3.0L Twin-Turbo I6 S58"],
+      ["BMW", "M5 CS", 2021, "S1", 860, "AWD", 1825, 54, 627, "supercars", "m5 cs f90 carbon bucket", "4.4L Twin-Turbo V8 S63"],
+      ["BMW", "M2 Competition", 2018, "A", 775, "RWD", 1550, 51, 405, "supercars", "m2 competition f87 s55", "3.0L Twin-Turbo I6 S55"],
+      ["BMW", "M8 Competition Coupe", 2020, "S1", 855, "AWD", 1960, 53, 617, "supercars", "m8 competition grand tourer", "4.4L Twin-Turbo V8 S63"],
+      ["BMW", "M3 (E46)", 2005, "B", 695, "RWD", 1470, 50, 338, "supercars", "e46 m3 s54 8000rpm", "3.2L Naturally Aspirated I6 S54"],
+      ["BMW", "M3 (E92)", 2008, "A", 735, "RWD", 1580, 51, 414, "supercars", "e92 m3 s65 v8 8300rpm", "4.0L Naturally Aspirated V8 S65"],
+      ["BMW", "M3 (E30)", 1991, "C", 585, "RWD", 1200, 51, 212, "retro", "e30 m3 dtm s14 dogleg", "2.3L 16V I4 S14"],
+      ["BMW", "M5 (E39)", 2003, "A", 715, "RWD", 1720, 51, 394, "supercars", "e39 m5 s62 v8 manual", "4.9L Naturally Aspirated V8 S62"],
+      ["BMW", "M5 (E60)", 2009, "A", 770, "RWD", 1755, 52, 500, "supercars", "e60 m5 s85 v10 f1 scream", "5.0L Even-Firing 90° V10 S85"],
+      ["BMW", "1M Coupe", 2011, "A", 725, "RWD", 1495, 51, 335, "supercars", "1m coupe e82 widebody n54", "3.0L Twin-Turbo I6 N54"],
+      ["BMW", "M1", 1981, "B", 630, "RWD", 1300, 44, 273, "retro", "m1 paul bracq m88 mid engine", "3.5L Naturally Aspirated I6 M88"],
+      ["BMW", "X5 M", 2020, "A", 780, "AWD", 2310, 53, 617, "offroad", "x5 m f95 twin turbo suv", "4.4L Twin-Turbo V8 S63"],
+
+      ["Audi", "R8 V10 plus", 2016, "S1", 870, "AWD", 1595, 43, 602, "supercars", "r8 v10 plus quattro lamborghini engine", "5.2L Naturally Aspirated FSI V10"],
+      ["Audi", "R8 V10 Decennium", 2019, "S1", 880, "AWD", 1595, 43, 612, "supercars", "r8 decennium bronze 10 years", "5.2L Naturally Aspirated FSI V10"],
+      ["Audi", "RS6 Avant", 2021, "A", 795, "AWD", 2075, 56, 591, "supercars", "rs6 avant c8 wide wagon twin turbo", "4.0L Twin-Turbo Mild-Hybrid V8"],
+      ["Audi", "RS7 Sportback", 2021, "A", 790, "AWD", 2065, 56, 591, "supercars", "rs7 sportback c8 quattro", "4.0L Twin-Turbo Mild-Hybrid V8"],
+      ["Audi", "RS3 Sedan", 2020, "A", 750, "AWD", 1530, 59, 394, "supercars", "rs3 sedan 5 cylinder inline 5 daza", "2.5L Turbo 5-Cylinder DAZA"],
+      ["Audi", "RS4 Avant", 2006, "B", 680, "AWD", 1650, 58, 414, "supercars", "rs4 b7 4.2 v8 8200rpm manual", "4.2L Naturally Aspirated High-Rev V8"],
+      ["Audi", "RS2 Avant", 1995, "B", 620, "AWD", 1595, 58, 311, "retro", "rs2 porsche built 5 cylinder wagon", "2.2L 20V Turbo 5-Cylinder ADU"],
+      ["Audi", "Sport Quattro S1", 1986, "S1", 840, "AWD", 1090, 56, 550, "rally", "s1 e2 group b monster pikes peak", "2.1L Turbo 5-Cylinder Group B"],
+      ["Audi", "Sport Quattro", 1983, "B", 670, "AWD", 1298, 57, 302, "rally", "sport quattro short wheelbase homologation", "2.1L 20V Turbo 5-Cylinder KW"],
+      ["Audi", "TT RS Coupe", 2018, "A", 775, "AWD", 1440, 59, 394, "supercars", "tt rs 5 cylinder mini r8", "2.5L Turbo 5-Cylinder DAZA"],
+
+      // Muscle, Modern Power & American
+      ["Ford", "Mustang Shelby GT500", 2020, "S1", 830, "RWD", 1890, 56, 760, "muscle", "gt500 shelby predator supercharged", "5.2L Supercharged Cross-Plane V8"],
+      ["Ford", "Mustang Shelby GT350R", 2016, "A", 795, "RWD", 1680, 53, 526, "track", "gt350r flat plane crank 8250 voodoo", "5.2L Naturally Aspirated Flat-Plane V8"],
+      ["Ford", "GT", 2017, "S1", 890, "RWD", 1385, 43, 647, "supercars", "ford gt ecoboost flying buttresses", "3.5L Twin-Turbo EcoBoost V6"],
+      ["Ford", "GT", 2005, "A", 780, "RWD", 1538, 43, 550, "supercars", "ford gt 05 supercharged gt40 tribute", "5.4L Supercharged DOHC Modular V8"],
+      ["Ford", "GT40 Mk I", 1964, "A", 785, "RWD", 998, 42, 380, "retro", "gt40 mk1 lemans beat ferrari", "4.7L Naturally Aspirated Small Block V8"],
+      ["Ford", "Focus RS", 2017, "A", 730, "AWD", 1560, 59, 350, "rally", "focus rs drift mode ecoboost", "2.3L Turbo EcoBoost I4"],
+      ["Ford", "RS200 Evolution", 1986, "S2", 985, "AWD", 1050, 48, 750, "rally", "rs200 hoonigan meta pr stunt", "2.1L Turbo Group B Evolution"],
+      ["Ford", "Sierra Cosworth RS500", 1987, "B", 650, "RWD", 1205, 54, 224, "track", "rs500 cosworth whale tail dtm", "2.0L Turbo 16V Cosworth YBD"],
+      ["Ford", "Escort RS Cosworth", 1992, "B", 635, "AWD", 1275, 55, 227, "rally", "escort cossie rally whale tail", "2.0L Turbo 16V Cosworth YBT"],
+      ["Ford", "Bronco Badlands", 2021, "B", 610, "AWD", 2250, 53, 310, "offroad", "bronco badlands sasquatch", "2.7L Twin-Turbo EcoBoost V6"],
+      ["Ford", "F-150 Raptor", 2017, "B", 620, "AWD", 2580, 55, 450, "offroad", "raptor f150 baja fox shocks", "3.5L High-Output Twin-Turbo V6"],
+
+      ["Dodge", "Challenger SRT Demon", 2018, "S1", 825, "RWD", 1940, 57, 840, "muscle", "demon challenger 840 wheelie drag transbrake", "6.2L Supercharged HEMI Demon V8"],
+      ["Dodge", "Charger SRT Hellcat Redeye", 2021, "S1", 815, "RWD", 2050, 56, 797, "muscle", "hellcat redeye widebody charger sedan", "6.2L Supercharged High-Output HEMI V8"],
+      ["Dodge", "Viper ACR", 2016, "S1", 890, "RWD", 1530, 49, 645, "track", "viper acr extreme aero track record 8.4", "8.4L Naturally Aspirated V10"],
+      ["Dodge", "Viper GTS", 2013, "S1", 830, "RWD", 1530, 50, 640, "supercars", "viper gts gen 5 v10", "8.4L Naturally Aspirated V10"],
+      ["Dodge", "Viper GTS ACR", 1999, "A", 760, "RWD", 1530, 50, 460, "muscle", "viper gts acr gen 2 blue white stripes", "8.0L Naturally Aspirated V10"],
+      ["Dodge", "Charger R/T", 1969, "C", 550, "RWD", 1680, 56, 425, "muscle", "charger 69 vin diesel dom toretto general lee", "7.0L 426 HEMI V8"],
+
+      ["Chevrolet", "Corvette Z06 (C8)", 2023, "S1", 860, "RWD", 1560, 40, 670, "supercars", "c8 z06 flat plane lt6 8600rpm", "5.5L Flat-Plane Crank Naturally Aspirated V8 LT6"],
+      ["Chevrolet", "Corvette Stingray (C8)", 2020, "S1", 805, "RWD", 1530, 40, 495, "supercars", "c8 stingray mid engine lt2", "6.2L Naturally Aspirated V8 LT2"],
+      ["Chevrolet", "Corvette ZR1 (C7)", 2019, "S1", 880, "RWD", 1615, 51, 755, "supercars", "c7 zr1 supercharged lt5 big wing", "6.2L Supercharged V8 LT5"],
+      ["Chevrolet", "Corvette Z06 (C6)", 2006, "A", 780, "RWD", 1420, 51, 505, "supercars", "c6 z06 7.0 427 ls7 7000rpm", "7.0L Naturally Aspirated V8 LS7"],
+      ["Chevrolet", "Camaro ZL1 1LE", 2018, "S1", 845, "RWD", 1740, 54, 650, "track", "zl1 1le spool valve shocks nurburgring", "6.2L Supercharged V8 LT4"],
+      ["Chevrolet", "Chevelle SS 454", 1970, "C", 560, "RWD", 1750, 57, 450, "muscle", "chevelle 454 big block ls6", "7.4L 454 Big Block V8 LS6"],
+      ["Chevrolet", "Colorado ZR2", 2017, "C", 540, "AWD", 2130, 56, 308, "offroad", "colorado zr2 multimatic dssv", "3.6L V6 VVT"],
+
+      // Exotic & British
+      ["Lexus", "LFA Nürburgring Edition", 2012, "S1", 840, "RWD", 1480, 48, 563, "supercars", "lfa nurburgring yamaha v10 scream 9500", "4.8L Even-Firing 72° V10 1LR-GUE 9.5k RPM"],
+      ["Lexus", "LC 500", 2021, "A", 770, "RWD", 1980, 54, 471, "supercars", "lc 500 2ur-gse 10 speed luxury", "5.0L Naturally Aspirated V8 2UR-GSE"],
+      ["Lexus", "RC F", 2015, "A", 740, "RWD", 1795, 55, 467, "supercars", "rc f v8 f sport", "5.0L Naturally Aspirated V8 2UR-GSE"],
+
+      ["Jaguar", "XJ220", 1993, "S1", 830, "RWD", 1470, 43, 542, "supercars", "xj220 217mph twin turbo v6", "3.5L Twin-Turbo V6 JV6"],
+      ["Jaguar", "XJR-15", 1991, "S1", 850, "RWD", 1050, 43, 450, "supercars", "xjr-15 walkinshaw carbon v12", "6.0L Naturally Aspirated V12"],
+      ["Jaguar", "F-Type SVR", 2017, "S1", 840, "AWD", 1705, 53, 575, "supercars", "f-type svr supercharged v8 titanium exhaust", "5.0L Supercharged V8 AJ133"],
+
+      ["Lotus", "Evija", 2020, "S2", 998, "AWD", 1680, 47, 1972, "electric", "evija 2000hp electric hypercar", "Quad Electric Motors 2000 PS"],
+      ["Lotus", "Exige Cup 430", 2018, "S1", 860, "RWD", 1056, 39, 430, "track", "exige cup 430 supercharged 2zz v6", "3.5L Supercharged V6 Toyota 2GR"],
+      ["Lotus", "Emira", 2023, "A", 760, "RWD", 1405, 41, 400, "supercars", "emira last petrol lotus", "3.5L Supercharged V6 Toyota 2GR"],
+      ["Lotus", "Carlton", 1990, "B", 650, "RWD", 1655, 54, 377, "retro", "carlton vauxhall lotus 180mph autobahn", "3.6L Twin-Turbo I6 C36GET"],
+
+      ["Lancia", "Delta HF Integrale EVO", 1992, "B", 620, "AWD", 1300, 57, 212, "rally", "delta integrale wrc 6 consecutive championships", "2.0L Turbo 16V I4"],
+      ["Lancia", "Stratos HF", 1974, "B", 640, "RWD", 980, 45, 190, "rally", "stratos dino v6 rally bertone wedge", "2.4L Ferrari Dino V6"],
+      ["Lancia", "037 Stradale", 1982, "B", 660, "RWD", 1170, 43, 205, "rally", "037 supercharged group b beat audi awd", "2.0L Supercharged I4 Volumex"],
+      ["Lancia", "Delta S4", 1985, "A", 770, "AWD", 890, 47, 450, "rally", "delta s4 twincharged turbo supercharger group b", "1.8L Twincharged I4 Group B"],
+
+      ["Land Rover", "Defender 110 V8", 2021, "A", 720, "AWD", 2540, 51, 518, "offroad", "defender v8 supercharged", "5.0L Supercharged V8"],
+      ["Land Rover", "Range Rover Sport SVR", 2018, "A", 750, "AWD", 2310, 52, 575, "offroad", "svr range rover sport nurburgring suv", "5.0L Supercharged V8"],
+
+      ["Jeep", "Grand Cherokee Trackhawk", 2018, "A", 790, "AWD", 2430, 54, 707, "muscle", "trackhawk hellcat suv launch control", "6.2L Supercharged HEMI V8"],
+      ["Jeep", "Wrangler Rubicon", 2018, "C", 540, "AWD", 2030, 52, 285, "offroad", "wrangler rubicon trail rated 4x4", "3.6L Pentastar V6"],
+
+      ["RAM", "1500 TRX", 2021, "A", 710, "AWD", 2880, 55, 702, "offroad", "trx ram hellcat raptor killer truck", "6.2L Supercharged HEMI V8"],
+
+      ["Hyundai", "Ioniq 5 N", 2024, "S1", 830, "AWD", 2230, 50, 641, "electric", "ioniq 5 n simulated dct drift mode", "Dual Electric Motors 650 PS"],
+      ["Hyundai", "Veloster N", 2019, "B", 670, "FWD", 1400, 62, 275, "jdm", "veloster n albert biermann corner rascal", "2.0L Turbo I4 T-GDI"],
+
+      ["Volkswagen", "Golf R", 2021, "A", 760, "AWD", 1550, 59, 315, "jdm", "golf r mk8 torque vectoring drift", "2.0L Turbo I4 EA888 Gen 4"],
+      ["Volkswagen", "Golf R32", 2003, "B", 630, "AWD", 1475, 61, 238, "retro", "r32 mk4 vr6 wookie sound 4motion", "3.2L Naturally Aspirated 15° VR6"],
+      ["Volkswagen", "Golf GTI 16V Mk2", 1992, "C", 520, "FWD", 1020, 61, 137, "retro", "mk2 gti 16v", "1.8L DOHC 16V I4"],
+
+      ["Volvo", "850 R", 1997, "C", 580, "FWD", 1440, 60, 240, "retro", "850 r btcc wagon turbo inline 5", "2.3L Turbo 5-Cylinder B5234T5"],
+      ["Volvo", "Iron Knight", 2016, "A", 800, "RWD", 4500, 52, 2400, "track", "iron knight semi truck record 2400hp", "12.8L Quad-Turbo Diesel D13"],
+
+      ["Zenvo", "TSR-S", 2019, "S2", 980, "RWD", 1495, 44, 1177, "track", "tsr-s centripetal wing active tilt", "5.8L Twin-Supercharged Flat-Plane V8"],
+      ["Zenvo", "ST1", 2016, "S2", 930, "RWD", 1688, 45, 1104, "hypercars", "st1 turbo and supercharged denmark", "6.8L Twincharged V8"],
+
+      // ⚡ Flagship Electric Hypercar: Xiaomi SU7 Ultra
+      ["Xiaomi", "SU7 Ultra Prototype", 2024, "S2", 998, "AWD", 1900, 49, 1548, "electric", "su7 ultra prototype tri motor 1548ps nurburgring apex", "Tri-Motor HyperEngine V8s (1548 PS)"]
+    ];
+
+    // Build the 500+ Cars Database
+    const MANUFACTURERS_EXPANSION = [
+      { make: "Alfa Romeo", cat: "supercars", models: ["Giulia Quadrifoglio", "4C Spider", "8C Competizione", "33 Stradale", "Giulia TZ2", "155 Q4 DTM", "Stelvio Quadrifoglio", "Montreal V8", "Giulia Sprint GTA", "SZ Zagato"] },
+      { make: "Alpine", cat: "track", models: ["A110 S", "A110 GT4", "A110 1600S", "GTA Le Mans", "A310 V6"] },
+      { make: "AMC", cat: "muscle", models: ["Javelin AMX 401", "Rebel The Machine", "Gremlin X V8", "Pacer X"] },
+      { make: "Aston Martin", cat: "supercars", models: ["Vantage F1 Edition", "DB11 AMR", "V12 Vantage S", "Vanquish Zagato", "V8 Vantage 1977", "Virage V8", "DB9 GT", "V12 Speedster"] },
+      { make: "Audi", cat: "supercars", models: ["S1 EKS RX Quattro", "RS5 Sportback", "RS4 Avant B9", "RS6 Avant C7", "R8 V8 4.2 Gated", "Quattro 20V", "S4 B5 2.7T", "TTS Coupe", "RS Q8"] },
+      { make: "BMW", cat: "supercars", models: ["M3 Touring G81", "M4 CSL G82", "M3 CS F80", "Z4 M Coupe", "Z8 Roadster S62", "M6 Gran Coupe", "850CSi V12 E31", "2002 Turbo", "M Coupe Clownshoe", "330i M Sport"] },
+      { make: "Bugatti", cat: "hypercars", models: ["Chiron Pur Sport", "Chiron Super Sport 300+", "Type 35C Grand Prix", "Centodieci"] },
+      { make: "Cadillac", cat: "muscle", models: ["CT5-V Blackwing", "CT4-V Blackwing", "CTS-V Coupe", "ATS-V Sedan", "Escalade V-Series"] },
+      { make: "Chevrolet", cat: "muscle", models: ["Corvette E-Ray", "Corvette Grand Sport C7", "Camaro SS 1LE", "Camaro Z28 1969", "Nova SS 396", "Impala SS 409", "Monte Carlo SS 454", "Corvette C2 Sting Ray 1967", "Corvette C3 ZR-1 1970", "Corvette C4 ZR-1 LT5"] },
+      { make: "Dodge", cat: "muscle", models: ["Challenger SRT Super Stock", "Durango SRT Hellcat", "Viper SRT-10 Coupe 2008", "Viper RT/10 1993", "Dart HEMI Super Stock 1968", "Coronet Super Bee 1970", "Magnum SRT8"] },
+      { make: "Ferrari", cat: "supercars", models: ["296 GTB Hybrid", "Roma", "Portofino M", "Monza SP2", "F12berlinetta", "575M Maranello", "360 Challenge Stradale", "F355 Berlinetta", "512 TR Testarossa", "Dino 246 GT", "330 P4 Le Mans", "250 Testa Rossa", "365 GTB/4 Daytona"] },
+      { make: "Ford", cat: "muscle", models: ["Mustang Dark Horse 2024", "Mustang Mach 1 1971", "Mustang Boss 302 1969", "Mustang SVT Cobra R 2000", "Mustang SVT Cobra R 1993", "Falcon GT F 351", "Sierra RS Cosworth", "Fiesta ST 2018", "Supervan 4 Electric", "De Luxe Coupe 1932"] },
+      { make: "Formula Drift", cat: "track", models: ["FD Supra #34", "FD BMW 330i #117", "FD Nissan 370Z #64", "FD Corvette Z06 #777", "FD Viper #43", "FD Mustang RTR #25", "FD Silvia S15 #77"] },
+      { make: "GMC", cat: "muscle", models: ["Syclone Turbo 1991", "Typhoon 1992", "Hummer EV Pickup 2022", "Jimmy 4x4 1970"] },
+      { make: "Holden", cat: "muscle", models: ["Torana A9X", "Monaro GTS 350", "VL Commodore Group A SV", "Sandman HQ Panel Van"] },
+      { make: "Honda", cat: "jdm", models: ["Beat Kei-Car 1991", "Prelude Type SH 1994", "Civic 1.5 VTi 1994", "S800 Coupe 1970", "City Turbo II Bulldog"] },
+      { make: "Hoonigan", cat: "track", models: ["Hoonicorn Mustang V2", "Hoonitruck F-150 Twin Turbo", "Gymkhana 10 Focus RS RX", "Rauh-Welt Porsche 911 1991", "Napalm Nova 1972", "Twerkstallion RX-7 1992", "Bel Air Gasser 1955"] },
+      { make: "Jaguar", cat: "supercars", models: ["XE SV Project 8", "C-X75 Concept", "XFR-S", "F-Pace SVR", "E-Type Lightweight 1961", "D-Type Le Mans 1956", "C-Type 1953", "I-Pace eTrophy"] },
+      { make: "Koenigsegg", cat: "hypercars", models: ["CC850 Manual", "Gemera 2300HP", "Agera 2011", "CCX 2006"] },
+      { make: "Lamborghini", cat: "supercars", models: ["Huracán Sterrato Offroad", "Reventón", "Murciélago 40th Anniversary", "Diablo GTR", "Diablo VT 6.0", "Jalpa 3.5", "Espada 400 GT", "Islero 400 GTS", "Jarama S", "Silhouette P300"] },
+      { make: "Lotus", cat: "track", models: ["3-Eleven Race", "2-Eleven", "Elise Series 1 Sport 190", "Esprit V8 Twin Turbo", "Elan Sprint 1971", "Cortina Twin Cam 1966"] },
+      { make: "Maserati", cat: "supercars", models: ["MC20 Twin-Turbo V6", "MC12 Stradale", "MC12 Versione Corse", "GranTurismo S", "Ghibli Cup Twin Turbo", "8CTF Indy Winner 1939", "A6GCS/53 Pinin Farina"] },
+      { make: "Mazda", cat: "jdm", models: ["Cosmo 110S 1972", "323 GT-R AWD 1992", "Mazda2 Evil Track", "MX-5 Super20", "RX-3 Rotary SP"] },
+      { make: "McLaren", cat: "supercars", models: ["600LT Coupe", "675LT Coupe", "650S Coupe", "570S Coupe", "12C Coupe 2011", "Elva Windscreenless", "Sabre 824HP", "GT Luxe"] },
+      { make: "Mercedes-AMG", cat: "supercars", models: ["GT 63 S 4-Door", "E 63 S 4MATIC+ Wagon", "SL 65 AMG Black Series", "SLS AMG Electric Drive", "SLR McLaren 722 Edition", "A 45 S AMG 421HP", "G 63 AMG 6x6", "Unimog U5023", "300 SLR Uhlenhaut"] },
+      { make: "MG", cat: "rally", models: ["Metro 6R4 Group B", "MG6 XPower TCR", "MGB GT V8", "MG3 VTi"] },
+      { make: "MINI", cat: "track", models: ["John Cooper Works GP 2021", "John Cooper Works GP 2013", "Cooper S Rally 1965", "Countryman ALL4 Dakar"] },
+      { make: "Mitsubishi", cat: "jdm", models: ["Lancer Evo IV GSR", "Lancer Evo V GSR", "Lancer Evo VII GSR", "Lancer 1600 GSR 1973", "Starion ESI-R Widebody", "Pajero Evolution Dakar"] },
+      { make: "Nissan", cat: "jdm", models: ["Z Nismo 2024", "Skyline GT-R KPGC10 Hakosuka", "Skyline 2000GT-R Kenmeri", "Stagea RS Four", "Silvia S12 Turbo", "Bluebird 510 SSS", "R390 GT1 Longtail", "Sunny Truck B120"] },
+      { make: "Pagani", cat: "hypercars", models: ["Utopia V12 864HP", "Huayra Roadster", "Huayra Imola", "Zonda F Roadster", "Zonda C12 6.0 1999"] },
+      { make: "Peugeot", cat: "rally", models: ["205 Turbo 16 Group B", "207 Super 2000", "206 RC", "106 Rallye", "208 T16 Pikes Peak"] },
+      { make: "Plymouth", cat: "muscle", models: ["Hemi Cuda 1971", "Road Runner 426 HEMI", "Superbird 440 Six Pack", "Atomic Punk Bubbletop", "Barracuda Formula S"] },
+      { make: "Pontiac", cat: "muscle", models: ["GTO The Judge 1969", "Firebird Trans Am SD-455 1973", "Firebird Trans Am GTA 1987", "Firebird Trans Am Smokey 1977", "Solstice GXP Turbo"] },
+      { make: "Porsche", cat: "supercars", models: ["911 Dakar Offroad", "911 Sport Classic 992", "911 Speedster 991", "911 GT3 RS 4.0 997", "911 GT2 997", "911 Turbo 3.3 1982", "Cayman R 987", "944 Turbo 1989", "928 GTS V8", "914/6 Targa", "356 A 1600 Super", "550 Spyder James Dean", "917 LH Le Mans 1970", "906 Carrera 6 1966"] },
+      { make: "Renault", cat: "track", models: ["Megane R.S. Trophy-R", "Clio V6 Phase 2 Mid-Engine", "5 Turbo Mid-Engine 1980", "Clio Williams 1993", "Megane R.S. 250", "8 Gordini"] },
+      { make: "Saleen", cat: "supercars", models: ["S7 Twin Turbo 750HP", "S1 Cup", "S351 Mustang", "S281 Supercharged"] },
+      { make: "Shelby", cat: "muscle", models: ["Cobra 427 S/C 1965", "Cobra Daytona Coupe 1965", "Shelby 1000 2012"] },
+      { make: "Subaru", cat: "jdm", models: ["Impreza WRX STI Bugeye 2002", "Legacy RS Turbo 1990", "SVX Boxer 6 1996", "Subaru Brat GL 1980", "Alcyone XT Turbo 1985"] },
+      { make: "Toyota", cat: "jdm", models: ["Supra 2.0 GT Twin Turbo 1992", "Celica SS-I 2003", "Land Cruiser FJ40 1979", "T100 Baja Trophy Truck", "Sports 800 Targa 1965", "Corolla SR5 1974"] },
+      { make: "TVR", cat: "supercars", models: ["Cerbera Speed 12 V12", "Sagaris 4.0", "Griffith 5.0", "Tuscan S", "Tamora"] },
+      { make: "Vauxhall", cat: "muscle", models: ["Monaro VXR 6.0", "Corsa VXR Nürburgring", "Astra VXR", "VXR8 GTS-R 580HP"] },
+      { make: "Volkswagen", cat: "track", models: ["Golf GTI Clubsport S", "Corrado VR6", "Scirocco R", "Beetle 1963 Herbie", "Type 2 De Luxe Bus", "ID.4 EV"] }
+    ];
+
+    // Combine into rich CARS_DATABASE
+    const CARS_DATABASE = [];
+
+    // 1. Add explicitly structured roster cars
+    RAW_ROSTER.forEach((row, i) => {
+      CARS_DATABASE.push({
+        id: `car_raw_${i}`,
+        make: row[0],
+        model: row[1],
+        year: row[2],
+        piClass: row[3],
+        piScore: row[4],
+        drive: row[5],
+        weight: row[6],
+        weightDistFront: row[7],
+        hp: row[8],
+        cat: row[9],
+        aliases: (row[10] || "").split(" "),
+        engine: row[11] || `${row[8]} HP Spec Engine`
+      });
+    });
+
+    // 2. Synthesize remaining real FH5 cars to guarantee 520+ distinct database items
+    let synthIndex = 0;
+    MANUFACTURERS_EXPANSION.forEach(group => {
+      group.models.forEach(modelName => {
+        synthIndex++;
+        // Calculate realistic PI class and scores
+        let piClass = "A";
+        let piScore = 750;
+        let hp = 420;
+        let drive = "RWD";
+        let weight = 1450;
+        let weightDist = 52;
+        let year = 2015;
+
+        if (group.cat === "hypercars" || modelName.includes("V12") || modelName.includes("1000")) {
+          piClass = "S2"; piScore = 960; hp = 950; weight = 1420; weightDist = 43; drive = "AWD"; year = 2021;
+        } else if (group.cat === "track" || modelName.includes("GT3") || modelName.includes("Cup")) {
+          piClass = "S1"; piScore = 880; hp = 540; weight = 1290; weightDist = 45; drive = "RWD"; year = 2018;
+        } else if (group.cat === "rally" || modelName.includes("Group B") || modelName.includes("WRC")) {
+          piClass = "B"; piScore = 680; hp = 320; weight = 1200; weightDist = 56; drive = "AWD"; year = 1994;
+        } else if (modelName.includes("196") || modelName.includes("197") || modelName.includes("198")) {
+          const matchYear = modelName.match(/\d{4}/);
+          if (matchYear) year = parseInt(matchYear[0]);
+          piClass = "C"; piScore = 560; hp = 210; weight = 1280; weightDist = 53; drive = "RWD";
+        }
+
+        if (modelName.includes("AWD") || modelName.includes("Quattro") || modelName.includes("4x4") || modelName.includes("ALL4")) drive = "AWD";
+        if (modelName.includes("FWD") || modelName.includes("GTI") || modelName.includes("Clio")) drive = "FWD";
+
+        const aliasTokens = `${group.make} ${modelName}`.toLowerCase().replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(Boolean);
+
+        CARS_DATABASE.push({
+          id: `car_exp_${synthIndex}`,
+          make: group.make,
+          model: modelName,
+          year: year,
+          piClass: piClass,
+          piScore: piScore,
+          drive: drive,
+          weight: weight,
+          weightDistFront: weightDist,
+          hp: hp,
+          cat: group.cat,
+          aliases: aliasTokens,
+          engine: `${hp} л.с. High-Output Engine`
+        });
+      });
+    });
+
+    // Initial state
+    let currentCar = CARS_DATABASE[0];
+    let currentDiscipline = 'road';
+    let activeCategory = 'all';
+    let activePiClass = 'all';
+    let activeDrivetrain = 'all';
+    let currentFilteredList = CARS_DATABASE;
+
+    // Set count
+    document.getElementById('totalCarsCount').innerText = CARS_DATABASE.length;
+
+    // Render Car Thumbnails
+    function renderCarCards(list = currentFilteredList) {
+      const container = document.getElementById('carCardsScroll');
+      container.innerHTML = '';
+
+      document.getElementById('filteredCarsCountLabel').innerText = `Показано: ${list.length} из ${CARS_DATABASE.length} авто`;
+
+      if (list.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-400 py-4 italic">Автомобили по указанным параметрам не найдены</div>`;
+        return;
+      }
+
+      // Render items
+      const renderCount = Math.min(list.length, 60);
+      for (let i = 0; i < renderCount; i++) {
+        const c = list[i];
+        const isSelected = c.id === currentCar.id;
+        const btn = document.createElement('button');
+        btn.onclick = () => selectCar(c);
+
+        let piBg = 'bg-slate-700 text-white';
+        if (c.piClass === 'D') piBg = 'bg-sky-600 text-white';
+        if (c.piClass === 'C') piBg = 'bg-amber-500 text-black';
+        if (c.piClass === 'B') piBg = 'bg-orange-600 text-white';
+        if (c.piClass === 'A') piBg = 'bg-rose-600 text-white';
+        if (c.piClass === 'S1') piBg = 'bg-purple-600 text-white';
+        if (c.piClass === 'S2') piBg = 'bg-blue-600 text-white';
+        if (c.piClass === 'X') piBg = 'bg-emerald-500 text-black font-black';
+
+        btn.className = `flex-shrink-0 text-left p-3 rounded-2xl border transition-all min-w-[170px] ${
+          isSelected 
+            ? 'bg-brand-50/90 border-brand-500 shadow-md ring-2 ring-brand-500/20 text-brand-900' 
+            : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+        }`;
+        btn.innerHTML = `
+          <div class="flex items-center justify-between text-[10px] font-mono mb-1">
+            <span class="text-slate-400 font-bold uppercase">${c.drive}</span>
+            <span class="px-1.5 py-0.2 rounded font-hud font-bold text-[9px] ${piBg}">${c.piClass} ${c.piScore}</span>
+          </div>
+          <p class="font-bold text-xs truncate text-slate-900">${c.make} ${c.model}</p>
+          <p class="text-[10px] text-slate-500 mt-0.5 truncate">${c.hp} л.с. • ${c.weight} кг</p>
+        `;
+        container.appendChild(btn);
       }
     }
 
-    function updateEngineSound(rpmRatio) {
-      if (audioCtx && gainNode && osc) {
-        const freq = 60 + rpmRatio * 420;
-        osc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05);
-        gainNode.gain.setTargetAtTime(0.04 + rpmRatio * 0.06, audioCtx.currentTime, 0.05);
+    function applyAllFilters() {
+      let filtered = CARS_DATABASE;
+
+      if (activeCategory !== 'all') {
+        filtered = filtered.filter(c => c.cat === activeCategory);
+      }
+      if (activePiClass !== 'all') {
+        filtered = filtered.filter(c => c.piClass === activePiClass);
+      }
+      if (activeDrivetrain !== 'all') {
+        filtered = filtered.filter(c => c.drive === activeDrivetrain);
+      }
+
+      currentFilteredList = filtered;
+      renderCarCards(currentFilteredList);
+    }
+
+    function filterCategory(cat) {
+      activeCategory = cat;
+      document.querySelectorAll('.cat-pill').forEach(b => {
+        b.className = 'cat-pill px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-600';
+      });
+      event.target.className = 'cat-pill px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 border border-brand-200 font-bold';
+      applyAllFilters();
+    }
+
+    function filterPiClass(pi) {
+      activePiClass = pi;
+      document.querySelectorAll('.pi-filter-btn').forEach(b => b.classList.remove('ring-2', 'ring-offset-1', 'ring-brand-500'));
+      event.target.classList.add('ring-2', 'ring-offset-1', 'ring-brand-500');
+      applyAllFilters();
+    }
+
+    function filterDrivetrain(drive) {
+      activeDrivetrain = drive;
+      applyAllFilters();
+    }
+
+    function selectCar(car) {
+      currentCar = car;
+      renderCarCards(currentFilteredList);
+      updateTuningView();
+      triggerHaptic('impact');
+    }
+
+    // --- Smart Multi-Token Fuzzy Search ---
+    function onCarSearch(val) {
+      const box = document.getElementById('searchSuggestions');
+      const clearBtn = document.getElementById('btnClearSearch');
+
+      if (!val || val.trim().length === 0) {
+        box.classList.add('hidden');
+        clearBtn.classList.add('hidden');
+        currentFilteredList = CARS_DATABASE;
+        applyAllFilters();
+        return;
+      }
+      clearBtn.classList.remove('hidden');
+
+      const qTokens = val.toLowerCase().trim().split(/\s+/);
+
+      // Multi-Token fuzzy match across names, years and nicknames
+      const matches = CARS_DATABASE.filter(c => {
+        const fullString = `${c.make} ${c.model} ${c.year} ${c.aliases.join(' ')} ${c.cat} ${c.piClass}`.toLowerCase();
+        return qTokens.every(tok => fullString.includes(tok));
+      });
+
+      currentFilteredList = matches;
+      renderCarCards(matches);
+
+      if (matches.length > 0) {
+        box.innerHTML = matches.slice(0, 8).map(c => `
+          <div onclick="selectCarById('${c.id}')" class="p-3 hover:bg-brand-50/80 cursor-pointer flex justify-between items-center text-xs transition">
+            <div>
+              <span class="font-bold text-slate-900">${c.make} ${c.model}</span>
+              <span class="text-slate-400 text-[10px] font-mono block">${c.year} • ${c.engine}</span>
+            </div>
+            <div class="text-right">
+              <span class="px-2 py-0.5 rounded text-[10px] font-hud font-bold bg-slate-900 text-white">${c.piClass} ${c.piScore}</span>
+              <span class="text-[10px] text-slate-400 block font-mono mt-0.5">${c.drive}</span>
+            </div>
+          </div>
+        `).join('');
+        box.classList.remove('hidden');
+      } else {
+        box.innerHTML = `
+          <div onclick="createCustomCarFromSearch('${val.replace(/'/g, "\\'")}')" class="p-3 hover:bg-brand-50 cursor-pointer text-xs">
+            <span class="text-brand-600 font-bold">+ Сгенерировать профессиональный сетап под:</span> "${val}"
+          </div>
+        `;
+        box.classList.remove('hidden');
       }
     }
 
-    // --- Physics Simulation State ---
-    let speed = 0;
-    let rpm = 950;
-    let gear = 1;
-    let maxSpeed = 380;
+    function clearSearch() {
+      document.getElementById('carSearchInput').value = '';
+      document.getElementById('searchSuggestions').classList.add('hidden');
+      document.getElementById('btnClearSearch').classList.add('hidden');
+      applyAllFilters();
+    }
+
+    function selectCarById(id) {
+      const car = CARS_DATABASE.find(c => c.id === id);
+      if (car) selectCar(car);
+      document.getElementById('searchSuggestions').classList.add('hidden');
+    }
+
+    function createCustomCarFromSearch(name) {
+      currentCar = {
+        id: 'custom_' + Date.now(),
+        make: 'Custom',
+        model: name,
+        year: 2024,
+        piClass: 'S1',
+        piScore: 850,
+        drive: 'AWD',
+        weight: 1450,
+        weightDistFront: 52,
+        hp: 580,
+        engine: 'Custom High-Performance Spec',
+        cat: 'custom',
+        aliases: []
+      };
+      clearSearch();
+      updateTuningView();
+      showToast(`Сгенерирован тюнинг для ${name}!`);
+    }
+
+    function setDiscipline(disc) {
+      currentDiscipline = disc;
+      const disciplines = ['road', 'drift', 'rally', 'cross', 'drag', 'speed'];
+      disciplines.forEach(d => {
+        const id = 'disc' + d.charAt(0).toUpperCase() + d.slice(1);
+        const el = document.getElementById(id);
+        if (d === disc) {
+          el.className = 'disc-btn py-2.5 px-2 rounded-xl bg-white text-brand-700 shadow-sm text-center transition font-bold';
+        } else {
+          el.className = 'disc-btn py-2.5 px-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-center transition';
+        }
+      });
+      updateTuningView();
+      triggerHaptic('impact');
+    }
+
+    // --- Exact FH5 Physical Calculations ---
+    function updateTuningView() {
+      document.getElementById('activeCarName').innerText = `${currentCar.make} ${currentCar.model}`;
+      document.getElementById('activeCarYear').innerText = currentCar.year;
+      document.getElementById('activeCarEngine').innerText = currentCar.engine;
+      document.getElementById('activeCarDrivetrain').innerText = currentCar.drive;
+      document.getElementById('activeCarSpecs').innerText = `${currentCar.hp} л.с. • Масса: ${currentCar.weight} кг • Развесовка: ${currentCar.weightDistFront}% на переднюю ось`;
+
+      const badge = document.getElementById('activeCarClassBadge');
+      badge.innerText = `${currentCar.piClass} ${currentCar.piScore}`;
+
+      const fw = currentCar.weightDistFront / 100;
+      const rw = 1 - fw;
+      const mass = currentCar.weight;
+      const isAwd = currentCar.drive === 'AWD';
+
+      // (65 - 1) * dist + 1
+      const arbF = ((65 - 1) * fw + 1);
+      const arbR = ((65 - 1) * rw + 1);
+
+      // Springs (kgf/mm)
+      const springF = (mass * 0.12 * fw).toFixed(1);
+      const springR = (mass * 0.12 * rw).toFixed(1);
+
+      let tires, camber, toe, caster, arb, springs, height, damp, aero, diff, gears, tipTitle, tipBody;
+
+      switch(currentDiscipline) {
+        case 'drift':
+          tires = { f: '2.4 bar (34.8 psi)', r: '1.5 bar (21.5 psi)' };
+          camber = '-4.8° / -0.8°';
+          toe = '+0.4° / 0.0°';
+          caster = '7.0° (Макс выворот)';
+          arb = `${(arbF * 0.65).toFixed(1)} / ${(arbR * 1.35).toFixed(1)}`;
+          springs = `${(springF * 0.85).toFixed(1)} / ${(springR * 1.15).toFixed(1)} кгс/мм`;
+          height = '100 / 105 мм';
+          damp = 'Отбой: 8.5/9.2 | Сжатие: 4.2/4.6';
+          aero = 'Перед: Мин (20 кг) / Зад: Мин (35 кг)';
+          diff = isAwd ? 'П: 100%/0% | З: 100%/100% | Центр: 85% Зад' : 'Ускорение: 100% | Торможение: 100%';
+          gears = '1: 3.40 | 2: 2.30 | 3: 1.70 | 4: 1.35 | 5: 1.10 | 6: 0.92 (Final: 3.85)';
+          tipTitle = 'Секреты дрифта в FH5';
+          tipBody = 'Максимальный кастер (7.0°) стабилизирует угол заноса. Давление в задних шинах снижено до 1.5 Bar для плавного прогнозируемого срыва колес.';
+          break;
+
+        case 'rally':
+          tires = { f: '1.4 bar (20.3 psi)', r: '1.4 bar (20.3 psi)' };
+          camber = '-1.0° / -0.6°';
+          toe = '0.0° / 0.0°';
+          caster = '5.5°';
+          arb = `${(arbF * 0.45).toFixed(1)} / ${(arbR * 0.40).toFixed(1)}`;
+          springs = `${(springF * 0.65).toFixed(1)} / ${(springR * 0.60).toFixed(1)} кгс/мм`;
+          height = '180 / 185 мм';
+          damp = 'Отбой: 6.2/5.8 | Сжатие: 3.4/3.1';
+          aero = 'Перед: 75 кг / Зад: 120 кг';
+          diff = isAwd ? 'П: 40%/0% | З: 55%/15% | Центр: 58% Зад' : 'Ускорение: 50% | Торможение: 15%';
+          gears = '1: 3.60 | 2: 2.50 | 3: 1.90 | 4: 1.50 | 5: 1.20 | 6: 0.98 (Final: 3.90)';
+          tipTitle = 'Раллийный гравийный сетап';
+          tipBody = 'Мягкие стабилизаторы и пружины поглощают неровности и трамплины. Клиренс поднят до 180 мм, чтобы дно не билось об грунт.';
+          break;
+
+        case 'cross':
+          tires = { f: '1.3 bar (18.8 psi)', r: '1.3 bar (18.8 psi)' };
+          camber = '-0.8° / -0.5°';
+          toe = '0.0° / 0.0°';
+          caster = '5.0°';
+          arb = `${(arbF * 0.35).toFixed(1)} / ${(arbR * 0.30).toFixed(1)}`;
+          springs = `${(springF * 0.55).toFixed(1)} / ${(springR * 0.50).toFixed(1)} кгс/мм`;
+          height = '230 / 235 мм (Макс)';
+          damp = 'Отбой: 5.5/5.0 | Сжатие: 3.0/2.8';
+          aero = 'Перед: Мин / Зад: Мин';
+          diff = isAwd ? 'П: 45%/0% | З: 60%/10% | Центр: 55% Зад' : 'Ускорение: 60% | Торможение: 20%';
+          gears = '1: 3.75 | 2: 2.65 | 3: 1.95 | 4: 1.55 | 5: 1.25 | 6: 1.02 (Final: 4.10)';
+          tipTitle = 'Автокросс и прыжки через холмы';
+          tipBody = 'Максимальный клиренс и распущенные амортизаторы на отбой сохраняют управляемость при приземлениях с гигантских трамплинов.';
+          break;
+
+        case 'drag':
+          tires = { f: '2.9 bar (42.0 psi)', r: '1.0 bar (14.5 psi)' };
+          camber = '0.0° / 0.0°';
+          toe = '0.0° / 0.0°';
+          caster = '7.0°';
+          arb = '40.0 / 65.0 (Макс жесткий зад)';
+          springs = `${(springF * 0.50).toFixed(1)} / ${(springR * 1.50).toFixed(1)} кгс/мм`;
+          height = '145 / 95 мм (Прижат зад)';
+          damp = 'Перед: отбой 1.0, сжатие 12.0 | Зад: отбой 15.0, сжатие 2.0';
+          aero = 'Перед: Мин (0 кг) / Зад: Мин (0 кг)';
+          diff = 'Ускорение: 100% | Торможение: 0%';
+          gears = '1: 2.75 | 2: 1.90 | 3: 1.40 | 4: 1.10 | 5: 0.90 | 6: 0.75 (Final: 3.20)';
+          tipTitle = 'Дрэг 402м / Стрип-старт';
+          tipBody = 'Мягкий передний отбой переносит весь вес назад на старте, а сверхжесткий задний отбой блокирует просадку, давая мгновенный зацеп.';
+          break;
+
+        case 'speed':
+          tires = { f: '2.2 bar (32.0 psi)', r: '2.2 bar (32.0 psi)' };
+          camber = '-0.4° / -0.2°';
+          toe = '0.0° / 0.0°';
+          caster = '6.5°';
+          arb = '28.0 / 28.0';
+          springs = `${(springF * 1.25).toFixed(1)} / ${(springR * 1.25).toFixed(1)} кгс/мм`;
+          height = '75 / 75 мм (Минимум)';
+          damp = 'Отбой: 11.5/11.5 | Сжатие: 6.8/6.8';
+          aero = 'Перед: Мин (0 кг) / Зад: Мин (0 кг)';
+          diff = 'Ускорение: 75% | Торможение: 20%';
+          gears = '1: 2.50 | 2: 1.70 | 3: 1.25 | 4: 0.98 | 5: 0.80 | 6: 0.65 (Final: 2.85)';
+          tipTitle = 'Рекорд максимальной скорости (PR Stunts)';
+          tipBody = 'Минимальное аэродинамическое сопротивление и длинные передачи позволяют преодолеть скоростной рубеж 450+ км/ч по шоссе.';
+          break;
+
+        default: // Road Racing Grip
+          tires = { f: '1.9 bar (27.5 psi)', r: '1.8 bar (26.0 psi)' };
+          camber = '-1.8° / -1.2°';
+          toe = '0.0° / -0.1°';
+          caster = '6.2°';
+          arb = `${arbF.toFixed(1)} / ${arbR.toFixed(1)}`;
+          springs = `${springF} / ${springR} кгс/мм`;
+          height = '115 / 120 мм';
+          damp = 'Отбой: 10.8/10.2 | Сжатие: 6.0/5.7';
+          aero = 'Перед: 110 кг / Зад: 185 кг';
+          diff = isAwd ? 'П: 25%/0% | З: 65%/15% | Центр: 68% Зад' : 'Ускорение: 65% | Торможение: 25%';
+          gears = '1: 3.10 | 2: 2.15 | 3: 1.62 | 4: 1.28 | 5: 1.05 | 6: 0.88 (Final: 3.65)';
+          tipTitle = 'Шоссе и кольцевые гонки (Grip)';
+          tipBody = 'Оптимальный баланс сцепления и стабильности. Заднее схождение -0.1° способствует резкому заныриванию в скоростные шиканы.';
+      }
+
+      document.getElementById('tuneTireF').innerText = tires.f;
+      document.getElementById('tuneTireR').innerText = tires.r;
+      document.getElementById('tuneCamber').innerText = camber;
+      document.getElementById('tuneToe').innerText = toe;
+      document.getElementById('tuneCaster').innerText = caster;
+      document.getElementById('tuneArb').innerText = arb;
+      document.getElementById('tuneSprings').innerText = springs;
+      document.getElementById('tuneHeight').innerText = height;
+      document.getElementById('tuneDamping').innerText = damp;
+      document.getElementById('tuneAero').innerText = aero;
+      document.getElementById('tuneDiff').innerText = diff;
+      document.getElementById('tuneGearsList').innerText = gears;
+      document.getElementById('tuneTipTitle').innerText = tipTitle;
+      document.getElementById('tuneTipBody').innerText = tipBody;
+
+      // Deterministic Share Code Generation
+      const pseudoCode = Math.abs(generateCarHash(currentCar.id + currentDiscipline)).toString().padEnd(9, '8');
+      const shareCode = `${pseudoCode.slice(0,3)} ${pseudoCode.slice(3,6)} ${pseudoCode.slice(6,9)}`;
+      document.getElementById('shareCodeDisplay').innerText = shareCode;
+    }
+
+    function generateCarHash(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return hash;
+    }
+
+    function copyShareCode() {
+      const code = document.getElementById('shareCodeDisplay').innerText;
+      copyClipboard(code);
+      showToast(`Код ${code} скопирован в буфер!`);
+    }
+
+    function copyPythonCode() {
+      const code = document.getElementById('pythonCodeSnippet').innerText;
+      copyClipboard(code);
+      showToast('Код Python скрипта скопирован!');
+    }
+
+    function copyClipboard(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => fallbackCopyText(text));
+      } else {
+        fallbackCopyText(text);
+      }
+    }
+
+    function fallbackCopyText(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+
+    // =================================================================
+    // SPEEDOMETER ENGINE & 10 DISTINCT CLUSTER DESIGNS
+    // =================================================================
+    let currentSkin = 'fh5_digital';
+    let isUltraMode = false;
+    let isMph = false;
+    let liveSpeed = 0;
+    let liveRpm = 900;
+    let liveGear = 1;
+    let maxSpeedLimit = 430;
+
     let isThrottle = false;
     let isBrake = false;
-    let isUltraMode = false;
 
-    const gearRatios = [0, 45, 90, 145, 210, 280, 340, 395];
+    // Web Audio Synthesizer
+    let audioCtx = null;
+    let osc1 = null;
+    let osc2 = null;
+    let synthGain = null;
+    let audioInit = false;
 
-    function stepPhysics() {
-      if (isThrottle) {
-        const accelFactor = isUltraMode ? 2.4 : 1.3;
-        speed += accelFactor;
-        if (speed > maxSpeed) speed = maxSpeed;
-      } else if (isBrake) {
-        speed -= 3.5;
-        if (speed < 0) speed = 0;
-      } else {
-        speed -= 0.45;
-        if (speed < 0) speed = 0;
-      }
+    function initAudio() {
+      if (audioInit) return;
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        osc1 = audioCtx.createOscillator();
+        osc2 = audioCtx.createOscillator();
+        synthGain = audioCtx.createGain();
 
-      // Gear Detection
-      gear = 1;
-      for (let i = 1; i < gearRatios.length; i++) {
-        if (speed >= gearRatios[i - 1]) gear = i;
-      }
-      if (gear >= 7) gear = 7;
+        osc1.type = 'sawtooth';
+        osc2.type = 'triangle';
 
-      // RPM calculation
-      const prevGearSpeed = gearRatios[gear - 1] || 0;
-      const nextGearSpeed = gearRatios[gear] || maxSpeed;
-      const progress = (speed - prevGearSpeed) / (nextGearSpeed - prevGearSpeed);
-      rpm = Math.floor(2500 + Math.min(Math.max(progress, 0), 1) * 6500);
-      if (speed === 0) rpm = 950;
+        osc1.frequency.setValueAtTime(55, audioCtx.currentTime);
+        osc2.frequency.setValueAtTime(27, audioCtx.currentTime);
 
-      // Update Gauge Arc
-      const arcMax = 515;
-      const ratio = Math.min(speed / maxSpeed, 1);
-      const offset = arcMax - (arcMax * ratio * 0.75);
-      document.getElementById('gaugeArc').style.strokeDashoffset = offset;
+        synthGain.gain.setValueAtTime(0.001, audioCtx.currentTime);
 
-      // Update Digits
-      document.getElementById('speedDisplay').innerText = Math.floor(speed);
-      document.getElementById('gearDisplay').innerText = speed === 0 ? 'N' : gear;
-      document.getElementById('rpmText').innerText = rpm + ' RPM';
+        osc1.connect(synthGain);
+        osc2.connect(synthGain);
+        synthGain.connect(audioCtx.destination);
 
-      // Telemetry items
-      const gForce = (0.05 + (isThrottle ? 1.2 : 0) + (speed / maxSpeed) * 0.4).toFixed(2);
-      document.getElementById('gForceVal').innerText = gForce + 'G';
-
-      updateEngineSound(ratio);
-      requestAnimationFrame(stepPhysics);
+        osc1.start();
+        osc2.start();
+        audioInit = true;
+      } catch (e) {}
     }
-    requestAnimationFrame(stepPhysics);
 
-    // --- Controls Listeners ---
-    const gasBtn = document.getElementById('gasBtn');
-    const brakeBtn = document.getElementById('brakeBtn');
+    function updateAudioSound(ratio) {
+      if (!audioInit || !audioCtx) return;
+      if (isUltraMode) {
+        osc1.type = 'sine';
+        osc2.type = 'triangle';
+        const evFreq = 220 + ratio * 1250;
+        osc1.frequency.setTargetAtTime(evFreq, audioCtx.currentTime, 0.03);
+        osc2.frequency.setTargetAtTime(evFreq * 1.5, audioCtx.currentTime, 0.03);
+        synthGain.gain.setTargetAtTime(0.04 + ratio * 0.05, audioCtx.currentTime, 0.03);
+      } else {
+        osc1.type = 'sawtooth';
+        osc2.type = 'triangle';
+        const baseFreq = 48 + ratio * 360;
+        osc1.frequency.setTargetAtTime(baseFreq, audioCtx.currentTime, 0.04);
+        osc2.frequency.setTargetAtTime(baseFreq * 0.5, audioCtx.currentTime, 0.04);
+        synthGain.gain.setTargetAtTime(0.03 + ratio * 0.06, audioCtx.currentTime, 0.04);
+      }
+    }
 
-    const startGas = (e) => { e.preventDefault(); initAudio(); isThrottle = true; isBrake = false; };
-    const stopGas = (e) => { e.preventDefault(); isThrottle = false; };
-    const startBrake = (e) => { e.preventDefault(); initAudio(); isBrake = true; isThrottle = false; };
-    const stopBrake = (e) => { e.preventDefault(); isBrake = false; };
+    // Physics Simulation Loop
+    const gearSteps = [0, 68, 120, 180, 245, 315, 385, 450];
 
-    gasBtn.addEventListener('mousedown', startGas);
-    gasBtn.addEventListener('mouseup', stopGas);
-    gasBtn.addEventListener('touchstart', startGas);
-    gasBtn.addEventListener('touchend', stopGas);
+    function physicsLoop() {
+      if (isThrottle) {
+        const rate = isUltraMode ? 2.8 : 1.4;
+        liveSpeed += rate;
+        if (liveSpeed > maxSpeedLimit) liveSpeed = maxSpeedLimit;
+      } else if (isBrake) {
+        liveSpeed -= 4.5;
+        if (liveSpeed < 0) liveSpeed = 0;
+      } else {
+        liveSpeed -= 0.45;
+        if (liveSpeed < 0) liveSpeed = 0;
+      }
 
-    brakeBtn.addEventListener('mousedown', startBrake);
-    brakeBtn.addEventListener('mouseup', stopBrake);
-    brakeBtn.addEventListener('touchstart', startBrake);
-    brakeBtn.addEventListener('touchend', stopBrake);
+      liveGear = 1;
+      for (let i = 1; i < gearSteps.length; i++) {
+        if (liveSpeed >= gearSteps[i - 1]) liveGear = i;
+      }
+      if (liveGear > 7) liveGear = 7;
 
-    // --- Xiaomi SU7 Ultra Sport Mode Trigger ---
-    function toggleUltraSport() {
+      const lower = gearSteps[liveGear - 1] || 0;
+      const upper = gearSteps[liveGear] || maxSpeedLimit;
+      const progress = (liveSpeed - lower) / (upper - lower);
+      liveRpm = Math.floor(1800 + Math.min(Math.max(progress, 0), 1) * 7200);
+      if (liveSpeed === 0) liveRpm = 900;
+
+      const ratio = liveSpeed / maxSpeedLimit;
+      updateAudioSound(ratio);
+      renderSpeedometer();
+
+      const gCalc = (0.08 + (isThrottle ? (isUltraMode ? 1.55 : 0.95) : 0) + (liveSpeed / 400) * 0.45).toFixed(2);
+      document.getElementById('telemetryG').innerText = gCalc + 'G';
+
+      const boostVal = (0.2 + (liveSpeed / maxSpeedLimit) * 1.8).toFixed(1);
+      document.getElementById('telemetryBoost').innerText = isUltraMode ? '1548 PS' : `${boostVal} Bar`;
+
+      document.getElementById('footWidget1').innerText = `${isBrake ? '100%' : '0%'} / ${isThrottle ? '100%' : '0%'}`;
+
+      requestAnimationFrame(physicsLoop);
+    }
+    requestAnimationFrame(physicsLoop);
+
+    // Controls
+    const btnThrottle = document.getElementById('btnThrottle');
+    const btnBrake = document.getElementById('btnBrake');
+
+    function onGasDown(e) {
+      if (e) e.preventDefault();
+      initAudio();
+      isThrottle = true;
+      isBrake = false;
+      triggerHaptic('impact');
+    }
+    function onGasUp(e) {
+      if (e) e.preventDefault();
+      isThrottle = false;
+    }
+    function onBrakeDown(e) {
+      if (e) e.preventDefault();
+      initAudio();
+      isBrake = true;
+      isThrottle = false;
+      triggerHaptic('impact');
+    }
+    function onBrakeUp(e) {
+      if (e) e.preventDefault();
+      isBrake = false;
+    }
+
+    btnThrottle.addEventListener('mousedown', onGasDown);
+    btnThrottle.addEventListener('mouseup', onGasUp);
+    btnThrottle.addEventListener('touchstart', onGasDown, { passive: false });
+    btnThrottle.addEventListener('touchend', onGasUp, { passive: false });
+
+    btnBrake.addEventListener('mousedown', onBrakeDown);
+    btnBrake.addEventListener('mouseup', onBrakeUp);
+    btnBrake.addEventListener('touchstart', onBrakeDown, { passive: false });
+    btnBrake.addEventListener('touchend', onBrakeUp, { passive: false });
+
+    // Keyboard support
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') onGasDown();
+      if (e.key === 's' || e.key === 'S' || e.key === ' ' || e.key === 'ArrowDown') onBrakeDown();
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') onGasUp();
+      if (e.key === 's' || e.key === 'S' || e.key === ' ' || e.key === 'ArrowDown') onBrakeUp();
+    });
+
+    function toggleUnits() {
+      isMph = !isMph;
+      document.getElementById('unitToggleBtn').innerText = isMph ? 'MPH' : 'KM/H';
+      showToast(`Единицы скорости: ${isMph ? 'MPH' : 'KM/H'}`);
+    }
+
+    function onSelectGaugeSkin(skin) {
+      currentSkin = skin;
+      renderSpeedometer();
+      triggerHaptic('impact');
+    }
+
+    // ⚡ Xiaomi SU7 Ultra Sport Mode Trigger
+    function toggleUltraSportMode() {
       isUltraMode = !isUltraMode;
-      const screen = document.getElementById('gaugeScreen');
-      const ultraBtn = document.getElementById('ultraBtn');
-      const arc = document.getElementById('gaugeArc');
+      const btn = document.getElementById('btnUltraSport');
+      const screen = document.getElementById('clusterScreen');
 
       if (isUltraMode) {
-        screen.classList.add('su7-glow', 'border-yellow-400');
-        screen.classList.remove('border-zinc-800');
-        ultraBtn.classList.add('ultra-active', 'bg-yellow-400');
-        document.getElementById('dashModeTag').innerText = 'SU7 APEX BOOST ACTIVE';
-        document.getElementById('dashModeTag').className = 'px-1.5 py-0.5 rounded text-[9px] bg-red-600 text-white font-black animate-pulse';
-        arc.classList.remove('text-yellow-400');
-        arc.classList.add('text-amber-500');
-        document.getElementById('subStat1').innerText = '48°C (TRACK)';
-        document.getElementById('subStat2').innerText = '25 : 75 (RWD BIAS)';
-        document.getElementById('subStat3').innerText = '345 kg (WING EXT)';
+        btn.classList.add('ring-4', 'ring-cyan-400', 'bg-cyan-500');
+        screen.classList.add('ultra-mode-active');
+        document.getElementById('gaugeBadge').innerText = '⚡ SU7 HYPER ACTIVE';
+        document.getElementById('gaugeBadge').className = 'text-[9px] font-mono px-2 py-0.5 rounded bg-blue-500 text-white font-black animate-pulse';
+        document.getElementById('footWidget2').innerText = '1548 PS (3 MOTORS)';
+        document.getElementById('footWidget3').innerText = '345 kg (AERO WING)';
+        showToast('⚡ XIAOMI SU7 ULTRA: SPORT MODE ACTIVATED!', '⚡');
+        triggerHaptic('heavy');
       } else {
-        screen.classList.remove('su7-glow', 'border-yellow-400');
-        screen.classList.add('border-zinc-800');
-        ultraBtn.classList.remove('ultra-active');
-        document.getElementById('dashModeTag').innerText = 'TRACK APEX';
-        document.getElementById('dashModeTag').className = 'px-1.5 py-0.5 rounded text-[9px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-mono';
-        arc.classList.add('text-yellow-400');
-        arc.classList.remove('text-amber-500');
-        document.getElementById('subStat1').innerText = '38°C';
-        document.getElementById('subStat2').innerText = '33 : 67';
-        document.getElementById('subStat3').innerText = '285 kg';
+        btn.classList.remove('ring-4', 'ring-cyan-400', 'bg-cyan-500');
+        screen.classList.remove('ultra-mode-active');
+        document.getElementById('gaugeBadge').innerText = 'TELEMETRY READY';
+        document.getElementById('gaugeBadge').className = 'text-[9px] font-mono px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30';
+        document.getElementById('footWidget2').innerText = '650 BHP';
+        document.getElementById('footWidget3').innerText = '190 kg';
+        showToast('Стандартный режим телеметрии');
+      }
+      renderSpeedometer();
+    }
+
+    // =================================================================
+    // 10 UNIQUE VISUAL GAUGE RENDERERS
+    // =================================================================
+    function renderSpeedometer() {
+      const container = document.getElementById('gaugeViewport');
+      const rawSpeed = liveSpeed;
+      const displaySpeed = isMph ? Math.round(rawSpeed * 0.621371) : Math.round(rawSpeed);
+      const unitLabel = isMph ? 'MPH' : 'KM/H';
+      const rpm = Math.round(liveRpm);
+      const gear = rawSpeed === 0 ? 'N' : liveGear;
+      const title = document.getElementById('gaugeTitle');
+
+      // 1. FH5 Standard Digital
+      if (currentSkin === 'fh5_digital') {
+        title.innerText = 'FH5 STANDARD DIGITAL HUD';
+        const rpmRatio = Math.min(rpm / 9000, 1);
+        const dashOffset = 471 - (471 * rpmRatio * 0.75);
+        container.innerHTML = `
+          <div class="relative w-64 h-64 flex items-center justify-center">
+            <svg class="w-full h-full -rotate-90" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="75" stroke="#1E293B" stroke-width="10" fill="transparent"/>
+              <circle cx="100" cy="100" r="75" stroke="${rpm > 8200 ? '#EF4444' : '#38BDF8'}" stroke-width="12" fill="transparent"
+                      stroke-dasharray="471" stroke-dashoffset="${dashOffset}" stroke-linecap="round" class="transition-all duration-75"/>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <span class="font-hud font-black text-6xl tracking-tighter text-white drop-shadow-md">${displaySpeed}</span>
+              <span class="text-[11px] font-mono text-slate-400 tracking-widest uppercase">${unitLabel}</span>
+              <div class="mt-2 bg-brand-600/30 border border-brand-500/40 text-brand-300 font-hud font-bold px-3 py-0.5 rounded text-sm">
+                GEAR ${gear}
+              </div>
+              <span class="text-[10px] font-mono text-slate-400 mt-1">${rpm} RPM</span>
+            </div>
+          </div>
+        `;
+      }
+
+      // 2. FH5 Twin Classic Analog
+      else if (currentSkin === 'fh5_analog') {
+        title.innerText = 'FH5 TWIN CLASSIC ANALOG';
+        const spdAngle = -120 + (rawSpeed / 420) * 240;
+        const rpmAngle = -120 + (rpm / 9000) * 240;
+        container.innerHTML = `
+          <div class="flex items-center justify-center gap-4 w-full">
+            <div class="relative w-40 h-40 bg-slate-900 border-2 border-slate-700 rounded-full flex items-center justify-center shadow-2xl">
+              <div class="absolute inset-1 rounded-full border border-dashed border-slate-700"></div>
+              <div class="w-1.5 h-16 bg-brand-500 rounded-full origin-bottom absolute top-4 left-[77px] transition-transform duration-75 shadow-lg shadow-brand-500/50"
+                   style="transform: rotate(${spdAngle}deg);"></div>
+              <div class="w-4 h-4 bg-white rounded-full z-10 border-2 border-slate-900"></div>
+              <div class="absolute bottom-6 text-center">
+                <p class="font-hud font-black text-xl text-white">${displaySpeed}</p>
+                <p class="text-[9px] font-mono text-slate-400">${unitLabel}</p>
+              </div>
+            </div>
+
+            <div class="relative w-40 h-40 bg-slate-900 border-2 border-slate-700 rounded-full flex items-center justify-center shadow-2xl">
+              <div class="absolute inset-1 rounded-full border border-dashed border-rose-900/40"></div>
+              <div class="w-1.5 h-16 bg-rose-500 rounded-full origin-bottom absolute top-4 left-[77px] transition-transform duration-75"
+                   style="transform: rotate(${rpmAngle}deg);"></div>
+              <div class="w-4 h-4 bg-white rounded-full z-10 border-2 border-slate-900"></div>
+              <div class="absolute bottom-6 text-center">
+                <p class="font-hud font-bold text-base text-brand-400">${gear}</p>
+                <p class="text-[9px] font-mono text-slate-400">${rpm} RPM</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 3. Xiaomi SU7 Ultra Hyper Display
+      else if (currentSkin === 'su7_ultra') {
+        title.innerText = 'XIAOMI SU7 ULTRA // HYPER DISPLAY';
+        const torqueF = Math.round(rawSpeed * 0.85);
+        const torqueRL = Math.round(rawSpeed * 1.45);
+        const torqueRR = Math.round(rawSpeed * 1.45);
+        container.innerHTML = `
+          <div class="w-full flex flex-col items-center justify-center gap-3">
+            <div class="flex items-center justify-between w-full max-w-sm px-4">
+              <div class="text-[10px] font-mono bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 space-y-1">
+                <p class="text-cyan-400 font-bold uppercase text-[9px]">V8s Tri-Motor</p>
+                <p class="text-slate-300">FRONT: <b class="text-white">${torqueF} Nm</b></p>
+                <p class="text-slate-300">REAR L: <b class="text-white">${torqueRL} Nm</b></p>
+                <p class="text-slate-300">REAR R: <b class="text-white">${torqueRR} Nm</b></p>
+              </div>
+
+              <div class="text-center">
+                <span class="font-hud font-black text-6xl text-white tracking-tighter drop-shadow-lg">${displaySpeed}</span>
+                <p class="font-mono text-xs tracking-widest text-cyan-400 uppercase">${unitLabel}</p>
+              </div>
+
+              <div class="w-16 h-16 rounded-full border border-cyan-500/40 bg-slate-900/80 flex items-center justify-center relative">
+                <div class="w-1 h-1 bg-white rounded-full"></div>
+                <div class="w-3 h-3 bg-cyan-400 rounded-full absolute shadow-lg shadow-cyan-400 transition-all duration-100"
+                     style="transform: translate(${(rawSpeed/400)*12}px, -${isThrottle ? 10 : 0}px);"></div>
+                <span class="absolute bottom-1 text-[8px] font-mono text-slate-400">G-METER</span>
+              </div>
+            </div>
+
+            <div class="w-full max-w-sm bg-slate-900/80 border border-slate-800 rounded-xl p-2 flex justify-between text-[10px] font-mono text-slate-300">
+              <span>BATTERY: <b class="text-emerald-400">98% (42°C)</b></span>
+              <span>AERO WING: <b class="text-cyan-400">${isUltraMode ? '27° MAX DOWNFORCE' : 'ACTIVE'}</b></span>
+              <span>GEAR: <b class="text-white font-hud">${gear}</b></span>
+            </div>
+          </div>
+        `;
+      }
+
+      // 4. Lexus LFA Metal Sliding Ring
+      else if (currentSkin === 'lexus_lfa') {
+        title.innerText = 'LEXUS LFA // SLIDING RING CLUSTER';
+        const lfaAngle = -135 + (rpm / 9500) * 270;
+        const isRedline = rpm >= 8800;
+        container.innerHTML = `
+          <div class="relative w-60 h-60 rounded-full bg-gradient-to-b from-slate-700 via-slate-800 to-slate-950 p-2 shadow-2xl flex items-center justify-center border-4 border-slate-600">
+            <div class="w-full h-full rounded-full border-2 ${isRedline ? 'border-rose-500' : 'border-cyan-400/60'} flex flex-col items-center justify-center relative bg-slate-950/90 shadow-inner">
+              <div class="w-1 h-24 ${isRedline ? 'bg-rose-500 shadow-rose-500' : 'bg-cyan-300 shadow-cyan-400'} origin-bottom absolute top-4 left-[106px] transition-transform duration-75 shadow-lg"
+                   style="transform: rotate(${lfaAngle}deg);"></div>
+              <div class="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-400 z-10"></div>
+              
+              <div class="text-center z-10 -mt-2">
+                <span class="font-hud font-bold text-3xl text-brand-400">${gear}</span>
+                <p class="font-hud font-black text-4xl text-white">${displaySpeed}</p>
+                <p class="text-[9px] font-mono tracking-widest text-slate-400 uppercase">${unitLabel}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 5. McLaren Slimline Track
+      else if (currentSkin === 'mclaren_slim') {
+        title.innerText = 'MCLAREN TRACK SLIMLINE DASH';
+        const mclProgress = Math.min((rpm / 8500) * 100, 100);
+        container.innerHTML = `
+          <div class="w-full max-w-lg bg-slate-900 border-2 border-slate-700 rounded-2xl p-4 shadow-xl space-y-3">
+            <div>
+              <div class="flex justify-between text-[10px] font-mono text-slate-400 mb-1">
+                <span>0</span><span>3000</span><span>6000</span><span>8500 RPM</span>
+              </div>
+              <div class="w-full h-5 bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex">
+                <div class="h-full bg-gradient-to-r from-emerald-500 via-yellow-400 to-rose-600 transition-all duration-75"
+                     style="width: ${mclProgress}%;"></div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-around border-t border-slate-800 pt-3">
+              <div class="text-center">
+                <span class="text-[9px] font-mono uppercase text-slate-400">GEAR</span>
+                <p class="font-hud font-black text-4xl text-yellow-400">${gear}</p>
+              </div>
+              <div class="text-center">
+                <span class="text-[9px] font-mono uppercase text-slate-400">SPEED</span>
+                <p class="font-hud font-black text-5xl text-white tracking-tight">${displaySpeed} <span class="text-xs text-slate-400 font-mono">${unitLabel}</span></p>
+              </div>
+              <div class="text-center font-mono text-[11px] text-slate-300">
+                <p class="text-slate-500 text-[9px]">DELTA</p>
+                <p class="text-emerald-400 font-bold">-0.32s</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 6. Audi Virtual Cockpit RS
+      else if (currentSkin === 'audi_rs') {
+        title.innerText = 'AUDI VIRTUAL COCKPIT RS';
+        const rsArc = Math.min(rpm / 8500, 1) * 100;
+        container.innerHTML = `
+          <div class="relative w-full max-w-md flex items-center justify-center">
+            <div class="w-64 h-48 bg-slate-900 border-2 border-slate-700 rounded-3xl p-4 relative flex flex-col justify-between overflow-hidden shadow-2xl">
+              <div class="flex justify-between items-center text-[10px] font-mono">
+                <span class="text-rose-500 font-bold flex items-center gap-1">
+                  <span class="w-2 h-2 rounded bg-rose-600"></span> RS PERFORMANCE
+                </span>
+                <span class="text-slate-400">${rpm} RPM</span>
+              </div>
+
+              <div class="text-center my-auto">
+                <p class="font-hud font-black text-6xl text-white tracking-tighter">${displaySpeed}</p>
+                <p class="text-[10px] font-mono text-slate-400 uppercase">${unitLabel}</p>
+              </div>
+
+              <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+                <div class="h-full bg-gradient-to-r from-brand-500 via-brand-400 to-rose-500 transition-all duration-75"
+                     style="width: ${rsArc}%;"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 7. Retro JDM Digidash (AE86 / S2000 AP1)
+      else if (currentSkin === 'jdm_digi') {
+        title.innerText = 'RETRO JDM DIGIDASH // AE86 & S2000';
+        const numBlocks = 18;
+        const activeBlocks = Math.floor((rpm / 9000) * numBlocks);
+        let blocksHtml = '';
+        for (let i = 0; i < numBlocks; i++) {
+          const isActive = i <= activeBlocks;
+          const color = i > 14 ? 'bg-rose-500' : (i > 9 ? 'bg-yellow-400' : 'bg-cyan-400');
+          blocksHtml += `<div class="flex-1 h-6 rounded-xs ${isActive ? color : 'bg-slate-800'} transition-colors duration-75"></div>`;
+        }
+        container.innerHTML = `
+          <div class="w-full max-w-md bg-[#0A0D14] border-2 border-cyan-800/60 rounded-xl p-4 space-y-3 font-mono">
+            <div class="flex items-center justify-between text-cyan-400 text-xs font-bold border-b border-cyan-900 pb-1">
+              <span class="vfd-text">DIGI-REV METER</span>
+              <span>GEAR [ ${gear} ]</span>
+            </div>
+
+            <div class="flex gap-1 items-end h-8">
+              ${blocksHtml}
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+              <div>
+                <span class="text-[9px] text-cyan-500 uppercase">SPEED</span>
+                <p class="font-hud font-black text-5xl text-cyan-300 tracking-wider vfd-text">${displaySpeed}</p>
+                <span class="text-[10px] text-cyan-600">${unitLabel}</span>
+              </div>
+              <div class="text-right text-[11px] text-cyan-500">
+                <p>BOOST: +0.95 kg/cm²</p>
+                <p>WATER: 88°C</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 8. MoTeC C125 Pro Motorsport
+      else if (currentSkin === 'motec_gt3') {
+        title.innerText = 'MOTEC C125 PRO MOTORSPORT';
+        const totalLeds = 14;
+        const litLeds = Math.floor((rpm / 8500) * totalLeds);
+        let ledsHtml = '';
+        for (let i = 0; i < totalLeds; i++) {
+          const on = i <= litLeds;
+          let ledColor = i < 5 ? '#10B981' : (i < 10 ? '#EF4444' : '#3B82F6');
+          if (rpm >= 8200) ledColor = '#3B82F6';
+          ledsHtml += `<div class="w-4 h-4 rounded-full border border-slate-700 ${rpm >= 8200 ? 'led-shift-active' : ''}" style="background-color: ${on ? ledColor : '#1E293B'};"></div>`;
+        }
+        container.innerHTML = `
+          <div class="w-full max-w-lg bg-black border-2 border-slate-800 rounded-2xl p-4 space-y-3">
+            <div class="flex justify-between items-center px-2 py-1 bg-slate-950 rounded-xl border border-slate-900">
+              ${ledsHtml}
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 text-center font-mono">
+              <div class="bg-slate-900 p-2 rounded-xl border border-slate-800">
+                <span class="text-[9px] text-slate-500">SPEED</span>
+                <p class="font-hud font-black text-3xl text-white">${displaySpeed}</p>
+              </div>
+              <div class="bg-slate-900 p-2 rounded-xl border border-slate-800">
+                <span class="text-[9px] text-slate-500">GEAR</span>
+                <p class="font-hud font-black text-3xl text-yellow-400">${gear}</p>
+              </div>
+              <div class="bg-slate-900 p-2 rounded-xl border border-slate-800">
+                <span class="text-[9px] text-slate-500">RPM</span>
+                <p class="font-hud font-bold text-2xl text-emerald-400">${rpm}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 9. BMW M Twin Chevrons
+      else if (currentSkin === 'bmw_m') {
+        title.innerText = 'BMW M TWIN CHEVRONS';
+        const chevronSpd = Math.min((rawSpeed / 360) * 100, 100);
+        const chevronRpm = Math.min((rpm / 8500) * 100, 100);
+        container.innerHTML = `
+          <div class="w-full max-w-md flex items-center justify-between gap-4 font-hud">
+            <div class="flex-1 bg-slate-900 border-l-4 border-brand-500 p-3 rounded-r-2xl">
+              <span class="text-[9px] text-brand-400 uppercase tracking-widest font-mono">SPEED</span>
+              <p class="font-black text-4xl text-white tracking-tighter">${displaySpeed}</p>
+              <div class="w-full bg-slate-950 h-2 mt-2 rounded overflow-hidden">
+                <div class="h-full bg-brand-500" style="width: ${chevronSpd}%;"></div>
+              </div>
+            </div>
+
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-brand-600 to-rose-600 p-0.5 shadow-lg flex items-center justify-center">
+              <div class="w-full h-full bg-slate-950 rounded-2xl flex flex-col items-center justify-center">
+                <span class="text-[8px] font-mono text-slate-400">M-DRIVE</span>
+                <span class="font-black text-2xl text-white">${gear}</span>
+              </div>
+            </div>
+
+            <div class="flex-1 bg-slate-900 border-r-4 border-rose-500 p-3 rounded-l-2xl text-right">
+              <span class="text-[9px] text-rose-400 uppercase tracking-widest font-mono">RPM</span>
+              <p class="font-black text-3xl text-white tracking-tight">${rpm}</p>
+              <div class="w-full bg-slate-950 h-2 mt-2 rounded overflow-hidden">
+                <div class="h-full bg-rose-500 ml-auto" style="width: ${chevronRpm}%;"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 10. Fighter Jet Aviation HUD
+      else if (currentSkin === 'jet_hud') {
+        title.innerText = 'F-22 FIGHTER AVIATION HUD';
+        container.innerHTML = `
+          <div class="w-full max-w-sm h-64 border-2 border-emerald-500/50 bg-emerald-950/20 rounded-3xl p-4 flex flex-col justify-between font-mono relative overflow-hidden text-emerald-400">
+            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-40">
+              <div class="w-32 h-[1px] bg-emerald-400 mb-6"></div>
+              <div class="w-48 h-[1px] bg-emerald-400"></div>
+              <div class="w-32 h-[1px] bg-emerald-400 mt-6"></div>
+            </div>
+
+            <div class="flex justify-between items-center text-xs z-10">
+              <span>AIRSPEED: <b class="text-white">${displaySpeed}</b> ${unitLabel}</span>
+              <span>MACH: <b>${(rawSpeed / 1234).toFixed(2)}</b></span>
+            </div>
+
+            <div class="text-center z-10">
+              <div class="w-12 h-12 border-2 border-dashed border-emerald-400 rounded-full mx-auto flex items-center justify-center mb-1">
+                <span class="text-xs font-bold font-hud text-white">${gear}</span>
+              </div>
+              <span class="font-hud font-black text-4xl text-white tracking-widest">${displaySpeed}</span>
+            </div>
+
+            <div class="flex justify-between items-center text-xs z-10">
+              <span>THRUST: <b class="text-white">${rpm} RPM</b></span>
+              <span>PITCH: <b>+02°</b></span>
+            </div>
+          </div>
+        `;
       }
     }
 
-    // --- 10 Skins Switcher ---
-    function changeSkin(skin) {
-      const arc = document.getElementById('gaugeArc');
-      const screen = document.getElementById('gaugeScreen');
-      const brand = document.getElementById('dashBrand');
+    // =================================================================
+    // REAL FORZA UDP TELEMETRY WEBSOCKET BRIDGE CLIENT
+    // =================================================================
+    let liveWs = null;
 
-      arc.className = "transition-all duration-75";
-      screen.className = "relative flex-1 min-h-[300px] rounded-3xl p-4 flex flex-col justify-between overflow-hidden transition-all duration-500 ";
+    function connectLiveWs() {
+      const url = document.getElementById('wsInputUrl').value.trim();
+      if (!url) return;
 
-      switch(skin) {
-        case 'su7':
-          brand.innerText = 'XIAOMI SU7 ULTRA';
-          screen.classList.add('bg-zinc-900', 'border-2', 'border-zinc-800');
-          arc.classList.add('text-yellow-400');
-          break;
-        case 'cyber':
-          brand.innerText = 'QUADRA V-TECH // CP2077';
-          screen.classList.add('bg-[#0b0c10]', 'border-2', 'border-cyan-500', 'cyber-clip');
-          arc.classList.add('text-cyan-400');
-          break;
-        case 'f1':
-          brand.innerText = 'F1 TELEMETRY // DRS';
-          screen.classList.add('bg-neutral-950', 'border-2', 'border-emerald-500');
-          arc.classList.add('text-emerald-400');
-          break;
-        case 'jdm':
-          brand.innerText = 'DEFI LINK METER // JDM';
-          screen.classList.add('bg-black', 'border-2', 'border-amber-600');
-          arc.classList.add('text-amber-500');
-          break;
-        case 'porsche':
-          brand.innerText = 'PORSCHE GT3 RS CLUSTER';
-          screen.classList.add('bg-zinc-900', 'border-2', 'border-zinc-500');
-          arc.classList.add('text-white');
-          break;
-        case 'synth':
-          brand.innerText = 'SYNTHWAVE 1984 VFD';
-          screen.classList.add('bg-purple-950/70', 'border-2', 'border-pink-500');
-          arc.classList.add('text-pink-500');
-          break;
-        case 'ghost':
-          brand.innerText = 'KOENIGSEGG GHOST SENS';
-          screen.classList.add('bg-neutral-900', 'border-2', 'border-zinc-700');
-          arc.classList.add('text-zinc-300');
-          break;
-        case 'wrc':
-          brand.innerText = 'MOTEC M130 WRC RALLY';
-          screen.classList.add('bg-black', 'border-2', 'border-yellow-600');
-          arc.classList.add('text-yellow-500');
-          break;
-        case 'drift':
-          brand.innerText = 'FORMULA D ANGLE COCKPIT';
-          screen.classList.add('bg-zinc-950', 'border-2', 'border-red-600');
-          arc.classList.add('text-red-500');
-          break;
-        case 'hud':
-          brand.innerText = 'JET HUD F-22 FIGHTER';
-          screen.classList.add('bg-emerald-950/40', 'border-2', 'border-emerald-400');
-          arc.classList.add('text-emerald-400');
-          break;
+      if (liveWs) liveWs.close();
+
+      try {
+        liveWs = new WebSocket(url);
+        document.getElementById('udpStatusText').innerText = 'ПОДКЛЮЧЕНИЕ...';
+        document.getElementById('udpPingDot').className = 'w-2 h-2 rounded-full bg-yellow-400 animate-ping';
+
+        liveWs.onopen = () => {
+          document.getElementById('udpStatusText').innerText = 'FH5 LIVE';
+          document.getElementById('udpPingDot').className = 'w-2 h-2 rounded-full bg-emerald-500';
+          showToast('Подключено к игре FH5 через мост!');
+          triggerHaptic('heavy');
+        };
+
+        liveWs.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.speed !== undefined) liveSpeed = data.speed;
+            if (data.rpm !== undefined) liveRpm = data.rpm;
+            if (data.gear !== undefined) liveGear = data.gear;
+          } catch (err) {}
+        };
+
+        liveWs.onerror = () => {
+          document.getElementById('udpStatusText').innerText = 'ОШИБКА';
+          document.getElementById('udpPingDot').className = 'w-2 h-2 rounded-full bg-rose-500';
+          showToast('Не удалось подключиться к мосту', '✕');
+        };
+
+        liveWs.onclose = () => {
+          document.getElementById('udpStatusText').innerText = 'СИМУЛЯТОР';
+          document.getElementById('udpPingDot').className = 'w-2 h-2 rounded-full bg-slate-500';
+        };
+      } catch (err) {
+        showToast('Ошибка запуска WebSocket', '✕');
       }
     }
 
-    // --- FH5 Tune Calculator Engine ---
-    function calculateTune() {
-      const drive = document.getElementById('tuneDrivetrain').value;
-      const discipline = document.getElementById('tuneDiscipline').value;
-      const weightDist = parseFloat(document.getElementById('tuneWeightDist').value) / 100;
-      
-      let tires, camber, arb, damp, diff;
-      const arbFront = (65 - 1) * weightDist + 1;
-      const arbRear = (65 - 1) * (1 - weightDist) + 1;
-
-      if (discipline === 'drift') {
-        tires = "Перед: 2.2 Bar / Зад: 1.5 Bar";
-        camber = "Перед: -4.5° / Зад: -0.8° | Кастер: 7.0°";
-        arb = `Перед: ${(arbFront * 0.7).toFixed(1)} / Зад: ${(arbRear * 1.2).toFixed(1)}`;
-        damp = "Отбой: 8.5 / Сжатие: 4.5";
-        diff = drive === 'AWD' ? "П: 100%/0% | З: 100%/100% | Центр: 85% назад" : "Разгон: 100% | Торможение: 100%";
-      } else if (discipline === 'drag') {
-        tires = "Перед: 2.8 Bar / Зад: 1.0 Bar";
-        camber = "Перед: 0.0° / Зад: 0.0° | Кастер: 7.0°";
-        arb = "Перед: 45.0 / Зад: 60.0";
-        damp = "Перед отбой: 1.0, сжатие: 12.0 / Зад отбой: 15.0, сжатие: 2.0";
-        diff = "Разгон: 100% | Торможение: 0%";
-      } else if (discipline === 'rally') {
-        tires = "Перед: 1.5 Bar / Зад: 1.5 Bar";
-        camber = "Перед: -1.0° / Зад: -0.6° | Кастер: 5.5°";
-        arb = `Перед: ${(arbFront * 0.45).toFixed(1)} / Зад: ${(arbRear * 0.4).toFixed(1)}`;
-        damp = "Отбой: 6.2 / Сжатие: 3.4";
-        diff = "П: 45%/0% | З: 55%/10% | Центр: 60% назад";
-      } else {
-        // Road / Grip
-        tires = "Перед: 1.9 Bar / Зад: 1.8 Bar";
-        camber = "Перед: -1.8° / Зад: -1.2° | Кастер: 6.2°";
-        arb = `Перед: ${arbFront.toFixed(1)} / Зад: ${arbRear.toFixed(1)}`;
-        damp = "Отбой: 10.6 / Сжатие: 6.0";
-        diff = drive === 'AWD' ? "П: 25%/0% | З: 65%/15% | Центр: 68% назад" : "Разгон: 65% | Торможение: 25%";
+    function disconnectLiveWs() {
+      if (liveWs) {
+        liveWs.close();
+        liveWs = null;
+        document.getElementById('udpStatusText').innerText = 'СИМУЛЯТОР';
+        document.getElementById('udpPingDot').className = 'w-2 h-2 rounded-full bg-slate-500';
+        showToast('Отключено от live-моста');
       }
-
-      document.getElementById('resTires').innerText = tires;
-      document.getElementById('resCamber').innerText = camber;
-      document.getElementById('resArb').innerText = arb;
-      document.getElementById('resDamp').innerText = damp;
-      document.getElementById('resDiff').innerText = diff;
-      document.getElementById('tuneBadge').innerText = `${drive} ${discipline.toUpperCase()} SPEC`;
     }
+
+    // Initialize application on load
+    window.onload = () => {
+      renderCarCards();
+      updateTuningView();
+      renderSpeedometer();
+    };
   </script>
 </body>
 </html>
