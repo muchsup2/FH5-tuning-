@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>FH5 Tuner & Telemetry Cluster</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap');
+
+    body {
+      font-family: 'Rajdhani', sans-serif;
+      touch-action: manipulation;
+    }
+    .font-hud {
+      font-family: 'Orbitron', monospace;
+    }
+    .su7-glow {
+      box-shadow: 0 0 35px rgba(234, 179, 8, 0.45), inset 0 0 25px rgba(234, 179, 8, 0.2);
+    }
+    .cyber-clip {
+      clip-path: polygon(0 0, 92% 0, 100% 25%, 100% 100%, 8% 100%, 0 75%);
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; filter: drop-shadow(0 0 15px #eab308); }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .ultra-active {
+      animation: pulse-ring 1.8s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col select-none">
+
+  <!-- Header & Navigation -->
+  <header class="bg-zinc-900/90 backdrop-blur border-b border-zinc-800 p-3 sticky top-0 z-50 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-3 h-3 rounded-full bg-yellow-500 animate-ping"></div>
+      <span class="font-hud font-bold text-sm tracking-widest text-zinc-100">FH5 TELEMETRY APEX</span>
+    </div>
+    <div class="flex bg-zinc-950 p-1 rounded-lg border border-zinc-800">
+      <button id="tabBtnTune" onclick="switchTab('tune')" class="px-3 py-1 text-xs font-bold rounded bg-yellow-500 text-black transition">ТЮНИНГ</button>
+      <button id="tabBtnCluster" onclick="switchTab('cluster')" class="px-3 py-1 text-xs font-bold rounded text-zinc-400 hover:text-white transition">ПРИБОРКА</button>
+    </div>
+  </header>
+
+  <!-- TAB 1: FH5 TUNING GENERATOR -->
+  <main id="tabTune" class="flex-1 p-4 max-w-xl mx-auto w-full space-y-4">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-lg">
+      <h2 class="text-sm font-bold text-yellow-500 uppercase tracking-wider mb-3">Параметры автомобиля</h2>
+      
+      <div class="grid grid-cols-2 gap-3 text-xs mb-3">
+        <div>
+          <label class="block text-zinc-400 mb-1">Привод</label>
+          <select id="tuneDrivetrain" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-white font-bold">
+            <option value="AWD" selected>AWD (Полный)</option>
+            <option value="RWD">RWD (Задний)</option>
+            <option value="FWD">FWD (Передний)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-zinc-400 mb-1">Дисциплина</label>
+          <select id="tuneDiscipline" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-white font-bold">
+            <option value="road" selected>Шоссе / Grip</option>
+            <option value="drift">Дрифт</option>
+            <option value="rally">Ралли / Грунт</option>
+            <option value="drag">Дрэг 402м</option>
+            <option value="cross">Автокросс</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 text-xs mb-4">
+        <div>
+          <label class="block text-zinc-400 mb-1">Развесовка перед (%): <span id="weightVal" class="text-yellow-400 font-bold">52%</span></label>
+          <input type="range" id="tuneWeightDist" min="35" max="65" value="52" class="w-full accent-yellow-500" oninput="document.getElementById('weightVal').innerText = this.value + '%'">
+        </div>
+        <div>
+          <label class="block text-zinc-400 mb-1">Вес авто (кг)</label>
+          <input type="number" id="tuneWeight" value="1350" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-1.5 text-white font-bold">
+        </div>
+      </div>
+
+      <button onclick="calculateTune()" class="w-full py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-hud font-bold rounded-xl text-xs tracking-wider transition uppercase shadow-md">
+        Рассчитать сетап для FH5
+      </button>
+    </div>
+
+    <!-- Tuning Output Table -->
+    <div id="tuneResult" class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-lg space-y-3">
+      <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
+        <span class="font-hud text-xs text-yellow-500 font-bold uppercase">Рекомендуемый сетап</span>
+        <span id="tuneBadge" class="text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono">AWD GRIP SPEC</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80">
+          <p class="text-zinc-500 text-[10px] uppercase">Шины (Давление)</p>
+          <p class="font-mono text-zinc-200" id="resTires">Перед: 1.9 / Зад: 1.9 Bar</p>
+        </div>
+        <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80">
+          <p class="text-zinc-500 text-[10px] uppercase">Сход-Развал</p>
+          <p class="font-mono text-zinc-200" id="resCamber">Перед: -1.8° / Зад: -1.2°</p>
+        </div>
+        <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80">
+          <p class="text-zinc-500 text-[10px] uppercase">Стабилизаторы (ARB)</p>
+          <p class="font-mono text-zinc-200" id="resArb">Перед: 34.5 / Зад: 29.8</p>
+        </div>
+        <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80">
+          <p class="text-zinc-500 text-[10px] uppercase">Амортизаторы (Отбой/Сжатие)</p>
+          <p class="font-mono text-zinc-200" id="resDamp">Отбой: 10.4 / Сжатие: 5.8</p>
+        </div>
+        <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80 col-span-2">
+          <p class="text-zinc-500 text-[10px] uppercase">Дифференциал (Перед / Зад / Баланс)</p>
+          <p class="font-mono text-yellow-400" id="resDiff">Перед: 25%/0% | Зад: 65%/20% | Центр: 65% назад</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- TAB 2: INTERACTIVE SPEEDOMETER CLUSTER -->
+  <main id="tabCluster" class="flex-1 p-3 flex flex-col justify-between max-w-2xl mx-auto w-full hidden">
+    
+    <!-- Top Controls: Styles & Sport Mode -->
+    <div class="flex flex-col gap-2 mb-2">
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+        <select id="skinSelector" onchange="changeSkin(this.value)" class="bg-zinc-900 border border-zinc-700 text-yellow-400 rounded-lg p-2 font-bold text-xs">
+          <option value="su7">1. Xiaomi SU7 Ultra Track</option>
+          <option value="cyber">2. Cyberpunk 2077 HUD</option>
+          <option value="f1">3. F1 Telemetry LED</option>
+          <option value="jdm">4. JDM Defi Amber</option>
+          <option value="porsche">5. Porsche Track Precision</option>
+          <option value="synth">6. Synthwave Outrun 80s</option>
+          <option value="ghost">7. Koenigsegg Ghost</option>
+          <option value="wrc">8. WRC Rally MoTeC</option>
+          <option value="drift">9. Formula Drift Cockpit</option>
+          <option value="hud">10. Fighter Jet Aviation HUD</option>
+        </select>
+
+        <!-- SU7 ULTRA SPORT MODE TOGGLE -->
+        <button id="ultraBtn" onclick="toggleUltraSport()" class="flex-1 py-2 px-3 bg-gradient-to-r from-yellow-600 via-amber-500 to-yellow-400 hover:brightness-110 text-black font-hud font-black text-xs rounded-lg tracking-wider uppercase transition shadow-lg flex items-center justify-center gap-1.5 whitespace-nowrap">
+          <span>⚡ ULTRA SPORT MODE</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Cluster Screen Container -->
+    <div id="gaugeScreen" class="relative flex-1 min-h-[300px] bg-zinc-900 border-2 border-zinc-800 rounded-3xl p-4 flex flex-col justify-between overflow-hidden transition-all duration-500">
+      
+      <!-- Top Bar Inside Dash -->
+      <div class="flex justify-between items-center text-xs border-b border-white/10 pb-2 z-10">
+        <div class="flex items-center gap-2">
+          <span id="dashBrand" class="font-hud font-bold tracking-widest text-yellow-400">XIAOMI SU7 ULTRA</span>
+          <span id="dashModeTag" class="px-1.5 py-0.5 rounded text-[9px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-mono">TRACK APEX</span>
+        </div>
+        <div class="flex gap-3 font-mono text-[11px] text-zinc-400">
+          <span>G: <b id="gForceVal" class="text-white">0.05</b></span>
+          <span>PWR: <b id="pwrVal" class="text-yellow-400">1548 PS</b></span>
+        </div>
+      </div>
+
+      <!-- Main Central Visuals (Speed & Tachometer) -->
+      <div class="relative flex-1 flex items-center justify-center my-4">
+        <!-- SVG Radial Gauge -->
+        <svg class="w-64 h-64 -rotate-90 transform" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="82" stroke="currentColor" stroke-width="8" class="text-zinc-800/80" fill="transparent"/>
+          <circle id="gaugeArc" cx="100" cy="100" r="82" stroke="currentColor" stroke-width="10" 
+                  class="text-yellow-400 transition-all duration-75"
+                  fill="transparent"
+                  stroke-dasharray="515"
+                  stroke-dashoffset="515"
+                  stroke-linecap="round"/>
+        </svg>
+
+        <!-- Centered Speed Readout -->
+        <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+          <div id="gearDisplay" class="font-hud text-xl font-bold text-yellow-500 -mb-1">1</div>
+          <div id="speedDisplay" class="font-hud text-6xl font-black tracking-tighter text-white drop-shadow-md">0</div>
+          <div class="text-[11px] font-mono tracking-widest text-zinc-400 -mt-1 uppercase">km / h</div>
+          <div id="rpmText" class="text-[10px] font-mono text-zinc-500 mt-1">950 RPM</div>
+        </div>
+      </div>
+
+      <!-- Bottom Telemetry Stats -->
+      <div id="extraWidgets" class="grid grid-cols-3 gap-2 text-center text-xs z-10">
+        <div class="bg-black/40 border border-white/5 p-1.5 rounded-xl">
+          <p class="text-[9px] text-zinc-400 uppercase">Battery Temp</p>
+          <p id="subStat1" class="font-mono font-bold text-emerald-400">38°C</p>
+        </div>
+        <div class="bg-black/40 border border-white/5 p-1.5 rounded-xl">
+          <p class="text-[9px] text-zinc-400 uppercase">Torque Split</p>
+          <p id="subStat2" class="font-mono font-bold text-yellow-400">33 : 67</p>
+        </div>
+        <div class="bg-black/40 border border-white/5 p-1.5 rounded-xl">
+          <p class="text-[9px] text-zinc-400 uppercase">Aero Downforce</p>
+          <p id="subStat3" class="font-mono font-bold text-sky-400">285 kg</p>
+        </div>
+      </div>
+
+      <!-- Background Ambient Grid / SU7 Sport Glow Effect -->
+      <div id="ambientBackdrop" class="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(#eab308_1px,transparent_1px)] [background-size:16px_16px]"></div>
+    </div>
+
+    <!-- Pedals / Interaction Console -->
+    <div class="grid grid-cols-2 gap-3 mt-3">
+      <button id="brakeBtn" class="py-4 bg-zinc-800 active:bg-rose-900 border border-zinc-700 rounded-2xl font-hud font-bold text-sm tracking-wider text-rose-400 active:text-white transition flex flex-col items-center justify-center">
+        <span>ТОРМОЗ</span>
+        <span class="text-[10px] font-mono opacity-60">HOLD TO DECEL</span>
+      </button>
+
+      <button id="gasBtn" class="py-4 bg-gradient-to-t from-yellow-600 to-yellow-500 active:from-yellow-400 active:to-yellow-300 border border-yellow-400 rounded-2xl font-hud font-black text-sm tracking-wider text-black transition flex flex-col items-center justify-center shadow-lg active:scale-98">
+        <span>ГАЗ В ПОЛ</span>
+        <span class="text-[10px] font-mono opacity-80 uppercase">Boost / Throttle</span>
+      </button>
+    </div>
+  </main>
+
+  <script>
+    // Telegram Mini App Initialization
+    if (window.Telegram && window.Telegram.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
+    }
+
+    // --- Tab Navigation ---
+    function switchTab(tab) {
+      const isTune = tab === 'tune';
+      document.getElementById('tabTune').classList.toggle('hidden', !isTune);
+      document.getElementById('tabCluster').classList.toggle('hidden', isTune);
+      document.getElementById('tabBtnTune').className = isTune 
+        ? 'px-3 py-1 text-xs font-bold rounded bg-yellow-500 text-black transition'
+        : 'px-3 py-1 text-xs font-bold rounded text-zinc-400 hover:text-white transition';
+      document.getElementById('tabBtnCluster').className = !isTune 
+        ? 'px-3 py-1 text-xs font-bold rounded bg-yellow-500 text-black transition'
+        : 'px-3 py-1 text-xs font-bold rounded text-zinc-400 hover:text-white transition';
+    }
+
+    // --- Web Audio Motor Synthesizer ---
+    let audioCtx = null;
+    let osc = null;
+    let gainNode = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        osc = audioCtx.createOscillator();
+        gainNode = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(80, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0.001, audioCtx.currentTime);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+      }
+    }
+
+    function updateEngineSound(rpmRatio) {
+      if (audioCtx && gainNode && osc) {
+        const freq = 60 + rpmRatio * 420;
+        osc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05);
+        gainNode.gain.setTargetAtTime(0.04 + rpmRatio * 0.06, audioCtx.currentTime, 0.05);
+      }
+    }
+
+    // --- Physics Simulation State ---
+    let speed = 0;
+    let rpm = 950;
+    let gear = 1;
+    let maxSpeed = 380;
+    let isThrottle = false;
+    let isBrake = false;
+    let isUltraMode = false;
+
+    const gearRatios = [0, 45, 90, 145, 210, 280, 340, 395];
+
+    function stepPhysics() {
+      if (isThrottle) {
+        const accelFactor = isUltraMode ? 2.4 : 1.3;
+        speed += accelFactor;
+        if (speed > maxSpeed) speed = maxSpeed;
+      } else if (isBrake) {
+        speed -= 3.5;
+        if (speed < 0) speed = 0;
+      } else {
+        speed -= 0.45;
+        if (speed < 0) speed = 0;
+      }
+
+      // Gear Detection
+      gear = 1;
+      for (let i = 1; i < gearRatios.length; i++) {
+        if (speed >= gearRatios[i - 1]) gear = i;
+      }
+      if (gear >= 7) gear = 7;
+
+      // RPM calculation
+      const prevGearSpeed = gearRatios[gear - 1] || 0;
+      const nextGearSpeed = gearRatios[gear] || maxSpeed;
+      const progress = (speed - prevGearSpeed) / (nextGearSpeed - prevGearSpeed);
+      rpm = Math.floor(2500 + Math.min(Math.max(progress, 0), 1) * 6500);
+      if (speed === 0) rpm = 950;
+
+      // Update Gauge Arc
+      const arcMax = 515;
+      const ratio = Math.min(speed / maxSpeed, 1);
+      const offset = arcMax - (arcMax * ratio * 0.75);
+      document.getElementById('gaugeArc').style.strokeDashoffset = offset;
+
+      // Update Digits
+      document.getElementById('speedDisplay').innerText = Math.floor(speed);
+      document.getElementById('gearDisplay').innerText = speed === 0 ? 'N' : gear;
+      document.getElementById('rpmText').innerText = rpm + ' RPM';
+
+      // Telemetry items
+      const gForce = (0.05 + (isThrottle ? 1.2 : 0) + (speed / maxSpeed) * 0.4).toFixed(2);
+      document.getElementById('gForceVal').innerText = gForce + 'G';
+
+      updateEngineSound(ratio);
+      requestAnimationFrame(stepPhysics);
+    }
+    requestAnimationFrame(stepPhysics);
+
+    // --- Controls Listeners ---
+    const gasBtn = document.getElementById('gasBtn');
+    const brakeBtn = document.getElementById('brakeBtn');
+
+    const startGas = (e) => { e.preventDefault(); initAudio(); isThrottle = true; isBrake = false; };
+    const stopGas = (e) => { e.preventDefault(); isThrottle = false; };
+    const startBrake = (e) => { e.preventDefault(); initAudio(); isBrake = true; isThrottle = false; };
+    const stopBrake = (e) => { e.preventDefault(); isBrake = false; };
+
+    gasBtn.addEventListener('mousedown', startGas);
+    gasBtn.addEventListener('mouseup', stopGas);
+    gasBtn.addEventListener('touchstart', startGas);
+    gasBtn.addEventListener('touchend', stopGas);
+
+    brakeBtn.addEventListener('mousedown', startBrake);
+    brakeBtn.addEventListener('mouseup', stopBrake);
+    brakeBtn.addEventListener('touchstart', startBrake);
+    brakeBtn.addEventListener('touchend', stopBrake);
+
+    // --- Xiaomi SU7 Ultra Sport Mode Trigger ---
+    function toggleUltraSport() {
+      isUltraMode = !isUltraMode;
+      const screen = document.getElementById('gaugeScreen');
+      const ultraBtn = document.getElementById('ultraBtn');
+      const arc = document.getElementById('gaugeArc');
+
+      if (isUltraMode) {
+        screen.classList.add('su7-glow', 'border-yellow-400');
+        screen.classList.remove('border-zinc-800');
+        ultraBtn.classList.add('ultra-active', 'bg-yellow-400');
+        document.getElementById('dashModeTag').innerText = 'SU7 APEX BOOST ACTIVE';
+        document.getElementById('dashModeTag').className = 'px-1.5 py-0.5 rounded text-[9px] bg-red-600 text-white font-black animate-pulse';
+        arc.classList.remove('text-yellow-400');
+        arc.classList.add('text-amber-500');
+        document.getElementById('subStat1').innerText = '48°C (TRACK)';
+        document.getElementById('subStat2').innerText = '25 : 75 (RWD BIAS)';
+        document.getElementById('subStat3').innerText = '345 kg (WING EXT)';
+      } else {
+        screen.classList.remove('su7-glow', 'border-yellow-400');
+        screen.classList.add('border-zinc-800');
+        ultraBtn.classList.remove('ultra-active');
+        document.getElementById('dashModeTag').innerText = 'TRACK APEX';
+        document.getElementById('dashModeTag').className = 'px-1.5 py-0.5 rounded text-[9px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-mono';
+        arc.classList.add('text-yellow-400');
+        arc.classList.remove('text-amber-500');
+        document.getElementById('subStat1').innerText = '38°C';
+        document.getElementById('subStat2').innerText = '33 : 67';
+        document.getElementById('subStat3').innerText = '285 kg';
+      }
+    }
+
+    // --- 10 Skins Switcher ---
+    function changeSkin(skin) {
+      const arc = document.getElementById('gaugeArc');
+      const screen = document.getElementById('gaugeScreen');
+      const brand = document.getElementById('dashBrand');
+
+      arc.className = "transition-all duration-75";
+      screen.className = "relative flex-1 min-h-[300px] rounded-3xl p-4 flex flex-col justify-between overflow-hidden transition-all duration-500 ";
+
+      switch(skin) {
+        case 'su7':
+          brand.innerText = 'XIAOMI SU7 ULTRA';
+          screen.classList.add('bg-zinc-900', 'border-2', 'border-zinc-800');
+          arc.classList.add('text-yellow-400');
+          break;
+        case 'cyber':
+          brand.innerText = 'QUADRA V-TECH // CP2077';
+          screen.classList.add('bg-[#0b0c10]', 'border-2', 'border-cyan-500', 'cyber-clip');
+          arc.classList.add('text-cyan-400');
+          break;
+        case 'f1':
+          brand.innerText = 'F1 TELEMETRY // DRS';
+          screen.classList.add('bg-neutral-950', 'border-2', 'border-emerald-500');
+          arc.classList.add('text-emerald-400');
+          break;
+        case 'jdm':
+          brand.innerText = 'DEFI LINK METER // JDM';
+          screen.classList.add('bg-black', 'border-2', 'border-amber-600');
+          arc.classList.add('text-amber-500');
+          break;
+        case 'porsche':
+          brand.innerText = 'PORSCHE GT3 RS CLUSTER';
+          screen.classList.add('bg-zinc-900', 'border-2', 'border-zinc-500');
+          arc.classList.add('text-white');
+          break;
+        case 'synth':
+          brand.innerText = 'SYNTHWAVE 1984 VFD';
+          screen.classList.add('bg-purple-950/70', 'border-2', 'border-pink-500');
+          arc.classList.add('text-pink-500');
+          break;
+        case 'ghost':
+          brand.innerText = 'KOENIGSEGG GHOST SENS';
+          screen.classList.add('bg-neutral-900', 'border-2', 'border-zinc-700');
+          arc.classList.add('text-zinc-300');
+          break;
+        case 'wrc':
+          brand.innerText = 'MOTEC M130 WRC RALLY';
+          screen.classList.add('bg-black', 'border-2', 'border-yellow-600');
+          arc.classList.add('text-yellow-500');
+          break;
+        case 'drift':
+          brand.innerText = 'FORMULA D ANGLE COCKPIT';
+          screen.classList.add('bg-zinc-950', 'border-2', 'border-red-600');
+          arc.classList.add('text-red-500');
+          break;
+        case 'hud':
+          brand.innerText = 'JET HUD F-22 FIGHTER';
+          screen.classList.add('bg-emerald-950/40', 'border-2', 'border-emerald-400');
+          arc.classList.add('text-emerald-400');
+          break;
+      }
+    }
+
+    // --- FH5 Tune Calculator Engine ---
+    function calculateTune() {
+      const drive = document.getElementById('tuneDrivetrain').value;
+      const discipline = document.getElementById('tuneDiscipline').value;
+      const weightDist = parseFloat(document.getElementById('tuneWeightDist').value) / 100;
+      
+      let tires, camber, arb, damp, diff;
+      const arbFront = (65 - 1) * weightDist + 1;
+      const arbRear = (65 - 1) * (1 - weightDist) + 1;
+
+      if (discipline === 'drift') {
+        tires = "Перед: 2.2 Bar / Зад: 1.5 Bar";
+        camber = "Перед: -4.5° / Зад: -0.8° | Кастер: 7.0°";
+        arb = `Перед: ${(arbFront * 0.7).toFixed(1)} / Зад: ${(arbRear * 1.2).toFixed(1)}`;
+        damp = "Отбой: 8.5 / Сжатие: 4.5";
+        diff = drive === 'AWD' ? "П: 100%/0% | З: 100%/100% | Центр: 85% назад" : "Разгон: 100% | Торможение: 100%";
+      } else if (discipline === 'drag') {
+        tires = "Перед: 2.8 Bar / Зад: 1.0 Bar";
+        camber = "Перед: 0.0° / Зад: 0.0° | Кастер: 7.0°";
+        arb = "Перед: 45.0 / Зад: 60.0";
+        damp = "Перед отбой: 1.0, сжатие: 12.0 / Зад отбой: 15.0, сжатие: 2.0";
+        diff = "Разгон: 100% | Торможение: 0%";
+      } else if (discipline === 'rally') {
+        tires = "Перед: 1.5 Bar / Зад: 1.5 Bar";
+        camber = "Перед: -1.0° / Зад: -0.6° | Кастер: 5.5°";
+        arb = `Перед: ${(arbFront * 0.45).toFixed(1)} / Зад: ${(arbRear * 0.4).toFixed(1)}`;
+        damp = "Отбой: 6.2 / Сжатие: 3.4";
+        diff = "П: 45%/0% | З: 55%/10% | Центр: 60% назад";
+      } else {
+        // Road / Grip
+        tires = "Перед: 1.9 Bar / Зад: 1.8 Bar";
+        camber = "Перед: -1.8° / Зад: -1.2° | Кастер: 6.2°";
+        arb = `Перед: ${arbFront.toFixed(1)} / Зад: ${arbRear.toFixed(1)}`;
+        damp = "Отбой: 10.6 / Сжатие: 6.0";
+        diff = drive === 'AWD' ? "П: 25%/0% | З: 65%/15% | Центр: 68% назад" : "Разгон: 65% | Торможение: 25%";
+      }
+
+      document.getElementById('resTires').innerText = tires;
+      document.getElementById('resCamber').innerText = camber;
+      document.getElementById('resArb').innerText = arb;
+      document.getElementById('resDamp').innerText = damp;
+      document.getElementById('resDiff').innerText = diff;
+      document.getElementById('tuneBadge').innerText = `${drive} ${discipline.toUpperCase()} SPEC`;
+    }
+  </script>
+</body>
+</html>
