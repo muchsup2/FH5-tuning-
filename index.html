@@ -1,121 +1,643 @@
-import socket
-import struct
-import math
-import json
-import asyncio
-import threading
-import http.server
-import socketserver
-import websockets
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>FH5 Apex Cluster & Tuner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,700;0,800;1,700&family=Inter:wght@400;500;600;700&display=swap');
 
-UDP_IP = "0.0.0.0"
-UDP_PORT = 5300          # Порт в игре FH5
-WS_HOST = "0.0.0.0"
-WS_PORT = 8080          # Порт данных телеметрии
-WEB_PORT = 8000         # Порт веб-сайта
-
-connected_clients = set()
-
-def get_local_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(('8.8.8.8', 80))
-        ip = s.getsockname()[0]
-    except Exception:
-        ip = '127.0.0.1'
-    finally:
-        s.close()
-    return ip
-
-def run_web_server():
-    class QuietHandler(http.server.SimpleHTTPRequestHandler):
-        def log_message(self, format, *args):
-            pass
-
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("", WEB_PORT), QuietHandler) as httpd:
-        httpd.serve_forever()
-
-async def ws_handler(websocket):
-    connected_clients.add(websocket)
-    print(f"\n[+] ТЕЛЕФОН ПОДКЛЮЧЕН! Спидометр активен.")
-    try:
-        await websocket.wait_closed()
-    finally:
-        connected_clients.remove(websocket)
-        print(f"\n[-] Телефон отключился.")
-
-def parse_forza_packet(data):
-    if len(data) < 232:
-        return None
-
-    is_race_on = struct.unpack_from('<i', data, 0)[0]
-    engine_max_rpm = struct.unpack_from('<f', data, 8)[0]
-    current_engine_rpm = struct.unpack_from('<f', data, 16)[0]
-
-    accel_x, accel_y, accel_z = struct.unpack_from('<fff', data, 20)
-    g_force = math.sqrt(accel_x**2 + accel_y**2 + accel_z**2) / 9.81
-
-    vx, vy, vz = struct.unpack_from('<fff', data, 32)
-    speed_kmh = math.sqrt(vx**2 + vy**2 + vz**2) * 3.6
-
-    boost = 0.0
-    gear = 1
-    throttle = 0.0
-    brake = 0.0
-
-    if len(data) >= 324:
-        boost = struct.unpack_from('<f', data, 284)[0]
-        throttle = struct.unpack_from('<B', data, 315)[0] / 255.0
-        brake = struct.unpack_from('<B', data, 316)[0] / 255.0
-        gear_raw = struct.unpack_from('<B', data, 319)[0]
-        gear = "R" if gear_raw == 0 else gear_raw
-
-    return {
-        "speed": round(speed_kmh, 1),
-        "rpm": int(current_engine_rpm),
-        "maxRpm": int(engine_max_rpm) if engine_max_rpm > 0 else 8000,
-        "gear": gear,
-        "boost": round(boost, 2),
-        "throttle": round(throttle, 2),
-        "brake": round(brake, 2),
-        "gForce": round(g_force, 2),
-        "raceActive": bool(is_race_on)
+    :root {
+      --primary-blue: #2563EB;
+      --deep-slate: #0F172A;
     }
 
-async def udp_listener():
-    loop = asyncio.get_running_loop()
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((UDP_IP, UDP_PORT))
-    sock.setblocking(False)
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F8FAFC;
+      color: #0F172A;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
 
-    while True:
-        try:
-            data = await loop.sock_recv(sock, 1024)
-            telemetry = parse_forza_packet(data)
-            if telemetry and connected_clients:
-                msg = json.dumps(telemetry)
-                await asyncio.gather(*[c.send(msg) for c in connected_clients], return_exceptions=True)
-        except Exception:
-            await asyncio.sleep(0.001)
+    .font-gauge {
+      font-family: 'Chakra Petch', sans-serif;
+    }
 
-async def main():
-    async with websockets.serve(ws_handler, WS_HOST, WS_PORT):
-        await udp_listener()
+    /* Аппаратная оптимизация для плавных 60fps анимаций */
+    .gauge-needle, .gauge-glow, .shift-led {
+      will-change: transform, stroke-dashoffset, opacity;
+      transform-origin: center;
+      transition: transform 0.06s cubic-bezier(0.1, 0.9, 0.2, 1);
+    }
 
-if __name__ == "__main__":
-    ip = get_local_ip()
+    /* Эффект свечения SU7 Ultra */
+    .ultra-glow {
+      box-shadow: 0 0 50px rgba(37, 99, 235, 0.5), inset 0 0 30px rgba(56, 189, 248, 0.25);
+      border-color: #38BDF8 !important;
+    }
 
-    web_thread = threading.Thread(target=run_web_server, daemon=True)
-    web_thread.start()
+    /* Скрытие полосы прокрутки */
+    ::-webkit-scrollbar {
+      display: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-50">
 
-    print("=" * 55)
-    print(" ГОТОВО К РАБОТЕ!")
-    print(f" Откройте на телефоне в браузере:")
-    print(f"👉 http://{ip}:{WEB_PORT}")
-    print("=" * 55)
+  <!-- Header: Минималистичный бело-синий навбар -->
+  <header class="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-50 px-4 py-2.5">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-md shadow-blue-500/20">
+          FH5
+        </div>
+        <div>
+          <h1 class="text-xs font-bold tracking-tight text-slate-900 leading-none">APEX CLUSTER</h1>
+          <p class="text-[10px] text-blue-600 font-medium">Digital Telemetry Cockpit</p>
+        </div>
+      </div>
 
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\nОстановлено.")
+      <!-- Переключение вкладок -->
+      <nav class="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <button id="navCluster" onclick="setTab('cluster')" class="px-3.5 py-1 text-xs font-semibold rounded-lg bg-white text-blue-600 shadow-sm transition">
+          Приборка
+        </button>
+        <button id="navTune" onclick="setTab('tune')" class="px-3.5 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition">
+          Тюнинг 500+
+        </button>
+        <button id="navUdp" onclick="setTab('udp')" class="px-3.5 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition">
+          Связь
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ================= ВКЛАДКА 1: ЦИФРОВАЯ ПРИБОРНАЯ ПАНЕЛЬ ================= -->
+  <main id="tabCluster" class="flex-1 flex flex-col max-w-6xl w-full mx-auto p-3 sm:p-5">
+    
+    <!-- Панель управления приборкой -->
+    <div class="flex flex-wrap items-center justify-between gap-2.5 mb-3 bg-white p-2.5 rounded-2xl border border-slate-200/80 shadow-sm">
+      <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Стиль:</label>
+        <select id="clusterStyle" onchange="switchDash(this.value)" class="flex-1 bg-slate-50 border border-slate-200 text-slate-900 text-xs font-semibold rounded-xl py-1.5 px-2.5 outline-none focus:border-blue-500 transition">
+          <option value="audi">1. Audi RS Virtual Cockpit</option>
+          <option value="su7">2. Xiaomi SU7 Ultra Hyper Track</option>
+          <option value="porsche">3. Porsche 911 GT3 RS</option>
+          <option value="bmw">4. BMW M Performance Chevron</option>
+          <option value="motec">5. MoTeC C125 Pro GT3</option>
+          <option value="lfa">6. Lexus LFA Metal Ring</option>
+          <option value="defi">7. JDM Defi Amber Gauges</option>
+          <option value="mclaren">8. McLaren Slim Track</option>
+          <option value="horizon">9. FH5 Horizon Apex HUD</option>
+          <option value="jet">10. Fighter Jet Aviation HUD</option>
+        </select>
+      </div>
+
+      <!-- Кнопка SU7 Ultra Sport Mode -->
+      <button id="ultraBtn" onclick="toggleUltraMode()" class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-gauge font-bold text-xs tracking-wider transition shadow-md shadow-blue-500/20 flex items-center gap-1.5 whitespace-nowrap active:scale-95">
+        <span class="w-2 h-2 rounded-full bg-cyan-300 animate-ping"></span>
+        <span>⚡ ULTRA SPORT</span>
+      </button>
+
+      <!-- Индикатор статуса сети -->
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+        <div id="statusDot" class="w-2 h-2 rounded-full bg-amber-500"></div>
+        <span id="statusText" class="text-[11px] font-medium text-slate-600">Ожидание FH5</span>
+      </div>
+    </div>
+
+    <!-- Основной экран цифровой приборной панели (Всегда четкие пропорции 16:9) -->
+    <div class="relative w-full aspect-[16/9] max-h-[75vh] mx-auto rounded-3xl bg-[#080B10] border-2 border-slate-800/80 overflow-hidden shadow-2xl flex items-center justify-center transition-all duration-500" id="dashContainer">
+      
+      <!-- Векторный холст 800x450 (Никогда не сжимается и не плывет) -->
+      <svg id="dashSvg" viewBox="0 0 800 450" class="w-full h-full select-none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="blueGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#38BDF8"/>
+            <stop offset="100%" stop-color="#2563EB"/>
+          </linearGradient>
+          <linearGradient id="amberGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#F59E0B"/>
+            <stop offset="100%" stop-color="#EF4444"/>
+          </linearGradient>
+          <linearGradient id="rsRed" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#3B82F6"/>
+            <stop offset="80%" stop-color="#EF4444"/>
+          </linearGradient>
+          <!-- Сетка фона -->
+          <pattern id="gridPattern" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+          </pattern>
+        </defs>
+
+        <rect width="800" height="450" fill="url(#gridPattern)" />
+
+        <!-- Контейнер для сменяемой графики спидометра -->
+        <g id="dashContent">
+          <!-- Сюда динамически монтируется выбранный скин через switchDash() -->
+        </g>
+      </svg>
+
+      <!-- Подсказка для поворота телефона -->
+      <div class="absolute bottom-2 right-3 pointer-events-none text-[9px] font-mono text-slate-500/60 uppercase tracking-widest hidden sm:block">
+        Поверните экран для вида кокпита
+      </div>
+    </div>
+  </main>
+
+  <!-- ================= ВКЛАДКА 2: БАЗА ТЮНИНГА 500+ АВТО ================= -->
+  <main id="tabTune" class="hidden flex-1 max-w-4xl w-full mx-auto p-4 space-y-4">
+    <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Каталог автомобилей FH5</h2>
+        <span id="carCountBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-semibold border border-blue-200">500+ авто</span>
+      </div>
+      
+      <!-- Поисковая строка -->
+      <div class="relative">
+        <input type="text" id="carSearchInput" oninput="filterCars()" placeholder="Введите авто (например: R34, Supra, M3, GT3 RS, Jesko, SU7)..." class="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2 text-xs font-medium outline-none focus:border-blue-500 transition">
+      </div>
+
+      <!-- Категории дисциплин -->
+      <div class="flex gap-1.5 overflow-x-auto pb-1 text-xs">
+        <button onclick="setDiscipline('road')" class="disc-btn px-3 py-1.5 rounded-xl bg-blue-600 text-white font-medium whitespace-nowrap transition">Шоссе (Grip)</button>
+        <button onclick="setDiscipline('drift')" class="disc-btn px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 font-medium whitespace-nowrap transition">Дрифт</button>
+        <button onclick="setDiscipline('rally')" class="disc-btn px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 font-medium whitespace-nowrap transition">Ралли / Грунт</button>
+        <button onclick="setDiscipline('drag')" class="disc-btn px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 font-medium whitespace-nowrap transition">Дрэг 402м</button>
+        <button onclick="setDiscipline('top')" class="disc-btn px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 font-medium whitespace-nowrap transition">Макс. Скорость</button>
+      </div>
+
+      <!-- Выпадающий список совпадений -->
+      <div id="carListResults" class="max-h-56 overflow-y-auto divide-y divide-slate-100 border border-slate-100 rounded-xl bg-slate-50/50">
+        <!-- Генерируется скриптом -->
+      </div>
+    </div>
+
+    <!-- Карточка вывода сетапа -->
+    <div id="tuneSetupCard" class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 id="targetCarTitle" class="text-base font-bold text-slate-900">Nissan Skyline GT-R V-Spec II (R34)</h3>
+          <p id="targetCarSpecs" class="text-xs text-blue-600 font-medium">1999 • AWD • 1560 кг • 54% Перед</p>
+        </div>
+        <div id="shareCodeTag" class="text-right">
+          <span class="text-[10px] text-slate-400 uppercase font-mono block">Share Code</span>
+          <span class="text-xs font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">742 819 031</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+          <span class="text-[10px] text-slate-400 uppercase font-medium">Давление шин</span>
+          <p id="tuneTires" class="font-mono font-bold text-slate-800 mt-0.5">П: 1.9 / З: 1.9 Bar</p>
+        </div>
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+          <span class="text-[10px] text-slate-400 uppercase font-medium">Развал колес</span>
+          <p id="tuneCamber" class="font-mono font-bold text-slate-800 mt-0.5">П: -1.8° / З: -1.2°</p>
+        </div>
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+          <span class="text-[10px] text-slate-400 uppercase font-medium">Стабилизаторы (ARB)</span>
+          <p id="tuneArb" class="font-mono font-bold text-slate-800 mt-0.5">П: 34.2 / З: 29.8</p>
+        </div>
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+          <span class="text-[10px] text-slate-400 uppercase font-medium">Амортизаторы</span>
+          <p id="tuneDamp" class="font-mono font-bold text-slate-800 mt-0.5">Отбой: 10.4 / Сжатие: 5.6</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ================= ВКЛАДКА 3: НАСТРОЙКИ СВЯЗИ ================= -->
+  <main id="tabUdp" class="hidden flex-1 max-w-2xl w-full mx-auto p-4 space-y-4">
+    <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+      <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Подключение к Forza Horizon 5</h2>
+      
+      <div class="space-y-1">
+        <label class="text-[11px] font-semibold text-slate-500">Адрес WebSocket моста (на ПК):</label>
+        <div class="flex gap-2">
+          <input type="text" id="wsInput" value="ws://localhost:8080" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 outline-none focus:border-blue-500">
+          <button onclick="connectBridge()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl shadow-md shadow-blue-500/20 transition">
+            Подключить
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1">При открытии с телефона укажите локальный IP вашего компьютера (например: <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-600">ws://192.168.1.50:8080</code>).</p>
+      </div>
+
+      <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-1.5 text-slate-600">
+        <div class="font-bold text-slate-800">Настройка в меню Forza Horizon 5:</div>
+        <div>1. Параметры $\to$ Интерфейс и игровой процесс.</div>
+        <div>2. <b>Data Out:</b> ВКЛ (ON).</div>
+        <div>3. <b>IP-адрес Data Out:</b> IP вашего Mac или <code class="text-blue-600 font-mono">127.0.0.1</code>.</div>
+        <div>4. <b>Порт Data Out:</b> <code class="text-blue-600 font-mono">5300</code>.</div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ================= 1. ТЕЛЕМЕТРИЯ И ФИЗИЧЕСКИЙ ДВИЖОК =================
+    const telemetry = {
+      speed: 0,
+      targetSpeed: 0,
+      rpm: 900,
+      targetRpm: 900,
+      maxRpm: 9000,
+      gear: "N",
+      targetGear: "1",
+      boost: 0.0,
+      gForce: 0.05,
+      throttle: 0.0,
+      brake: 0.0,
+      isUltra: false
+    };
+
+    let currentDash = 'audi';
+    let socket = null;
+
+    // Плавная интерполяция (LERP) для идеально мягкого хода стрелок
+    function renderLoop() {
+      // Плавное приближение текущего значения к целевому (60 раз в секунду)
+      telemetry.speed += (telemetry.targetSpeed - telemetry.speed) * 0.22;
+      telemetry.rpm += (telemetry.targetRpm - telemetry.rpm) * 0.22;
+      telemetry.gear = telemetry.targetGear;
+
+      updateDashGraphics();
+      requestAnimationFrame(renderLoop);
+    }
+    requestAnimationFrame(renderLoop);
+
+    // ================= 2. 10 РЕАЛИСТИЧНЫХ СКИНОВ ПРИБОРНЫХ ПАНЕЛЕЙ =================
+    function switchDash(dash) {
+      currentDash = dash;
+      const g = document.getElementById('dashContent');
+      g.innerHTML = '';
+
+      switch(dash) {
+        case 'audi':
+          // Audi RS Virtual Cockpit (Центральный хоккейный тахометр)
+          g.innerHTML = `
+            <!-- Обод тахометра -->
+            <path d="M 280 320 A 150 150 0 1 1 520 320" fill="none" stroke="#1E293B" stroke-width="18" stroke-linecap="round"/>
+            <path id="audiRpmBar" d="M 280 320 A 150 150 0 1 1 520 320" fill="none" stroke="url(#rsRed)" stroke-width="18" stroke-linecap="round" stroke-dasharray="720" stroke-dashoffset="720"/>
+            
+            <!-- Оцифровка RPM -->
+            <text x="310" y="300" fill="#64748B" font-size="12" font-weight="700" class="font-gauge">0</text>
+            <text x="270" y="220" fill="#64748B" font-size="12" font-weight="700" class="font-gauge">2</text>
+            <text x="310" y="140" fill="#64748B" font-size="12" font-weight="700" class="font-gauge">4</text>
+            <text x="400" y="115" fill="#64748B" font-size="12" font-weight="700" class="font-gauge" text-anchor="middle">6</text>
+            <text x="490" y="140" fill="#EF4444" font-size="12" font-weight="700" class="font-gauge">8</text>
+            <text x="525" y="220" fill="#EF4444" font-size="12" font-weight="700" class="font-gauge">9</text>
+
+            <!-- Цифровой спидометр внутри -->
+            <g transform="translate(400, 230)">
+              <text id="gearVal" y="-35" fill="#3B82F6" font-size="28" font-weight="800" text-anchor="middle" class="font-gauge">1</text>
+              <text id="speedVal" y="25" fill="#FFFFFF" font-size="78" font-weight="800" text-anchor="middle" class="font-gauge">0</text>
+              <text y="48" fill="#64748B" font-size="12" font-weight="700" text-anchor="middle" class="font-gauge tracking-widest">KM/H</text>
+              <text id="rpmVal" y="70" fill="#38BDF8" font-size="14" font-weight="600" text-anchor="middle" class="font-gauge">900 RPM</text>
+            </g>
+
+            <!-- Боковые телеметрии -->
+            <text x="60" y="220" fill="#94A3B8" font-size="12" class="font-gauge">G-FORCE: <tspan id="gVal" fill="#FFFFFF" font-weight="700">0.05</tspan> G</text>
+            <text x="60" y="245" fill="#94A3B8" font-size="12" class="font-gauge">BOOST: <tspan id="boostVal" fill="#38BDF8" font-weight="700">0.0</tspan> BAR</text>
+            <text x="740" y="220" fill="#94A3B8" font-size="12" text-anchor="end" class="font-gauge">MODE: <tspan fill="#3B82F6" font-weight="700">DYNAMIC RS</tspan></text>
+          `;
+          break;
+
+        case 'su7':
+          // Xiaomi SU7 Ultra Track Cockpit (Электро-гиперкар 1548 PS)
+          g.innerHTML = `
+            <!-- Внешние неоновые дуги мощности -->
+            <path d="M 230 360 C 210 200, 310 90, 400 90 C 490 90, 590 200, 570 360" fill="none" stroke="#1E293B" stroke-width="12" stroke-linecap="round"/>
+            <path id="su7PowerBar" d="M 230 360 C 210 200, 310 90, 400 90 C 490 90, 590 200, 570 360" fill="none" stroke="url(#blueGlow)" stroke-width="12" stroke-linecap="round" stroke-dasharray="600" stroke-dashoffset="600"/>
+
+            <!-- Центр: Скорость и Передача -->
+            <text x="400" y="160" fill="#38BDF8" font-size="18" font-weight="800" text-anchor="middle" class="font-gauge tracking-widest">XIAOMI SU7 ULTRA</text>
+            <text id="speedVal" x="400" y="255" fill="#FFFFFF" font-size="88" font-weight="800" text-anchor="middle" class="font-gauge">0</text>
+            <text x="400" y="285" fill="#64748B" font-size="14" font-weight="700" text-anchor="middle" class="font-gauge tracking-widest">KM/H</text>
+            <text id="gearVal" x="400" y="335" fill="#F59E0B" font-size="32" font-weight="800" text-anchor="middle" class="font-gauge">D</text>
+
+            <!-- 3 Мотора (Торг-векторинг) -->
+            <g transform="translate(100, 200)">
+              <rect x="0" y="0" width="70" height="8" rx="4" fill="#1E293B"/>
+              <rect id="m1Bar" x="0" y="0" width="20" height="8" rx="4" fill="#38BDF8"/>
+              <text x="0" y="-8" fill="#64748B" font-size="10" class="font-gauge">FRONT V6s</text>
+
+              <rect x="0" y="35" width="70" height="8" rx="4" fill="#1E293B"/>
+              <rect id="m2Bar" x="0" y="35" width="40" height="8" rx="4" fill="#3B82F6"/>
+              <text x="0" y="27" fill="#64748B" font-size="10" class="font-gauge">REAR-L V8s</text>
+
+              <rect x="0" y="70" width="70" height="8" rx="4" fill="#1E293B"/>
+              <rect id="m3Bar" x="0" y="70" width="40" height="8" rx="4" fill="#3B82F6"/>
+              <text x="0" y="62" fill="#64748B" font-size="10" class="font-gauge">REAR-R V8s</text>
+            </g>
+
+            <!-- G-Meter круг справа -->
+            <g transform="translate(680, 235)">
+              <circle cx="0" cy="0" r="45" fill="none" stroke="#1E293B" stroke-width="2"/>
+              <circle cx="0" cy="0" r="2" fill="#64748B"/>
+              <circle id="gBall" cx="0" cy="0" r="6" fill="#38BDF8" class="gauge-needle"/>
+              <text x="0" y="62" fill="#64748B" font-size="11" text-anchor="middle" class="font-gauge">G-METER</text>
+            </g>
+          `;
+          break;
+
+        case 'porsche':
+          // Porsche 911 GT3 RS (Аналоговый колодец со стрелкой)
+          g.innerHTML = `
+            <circle cx="400" cy="225" r="165" fill="#0C1017" stroke="#1E293B" stroke-width="6"/>
+            <!-- Шкала тахометра -->
+            <path d="M 270 320 A 145 145 0 1 1 530 320" fill="none" stroke="#334155" stroke-width="4" stroke-dasharray="4,8"/>
+            <text x="400" y="115" fill="#FFFFFF" font-size="16" font-weight="700" text-anchor="middle" class="font-gauge">GT3 RS</text>
+            
+            <!-- Стрелка тахометра -->
+            <g id="porscheNeedle" transform="translate(400, 225) rotate(-120)" class="gauge-needle">
+              <polygon points="-3,-145 3,-145 5,20 -5,20" fill="#FFFFFF"/>
+              <polygon points="-2,-145 2,-145 3,-80 -3,-80" fill="#EF4444"/>
+              <circle cx="0" cy="0" r="16" fill="#1E293B" stroke="#475569" stroke-width="2"/>
+            </g>
+
+            <!-- Цифровой спидометр внутри колодца -->
+            <text id="speedVal" x="400" y="290" fill="#FFFFFF" font-size="44" font-weight="800" text-anchor="middle" class="font-gauge">0</text>
+            <text x="400" y="308" fill="#64748B" font-size="11" font-weight="700" text-anchor="middle" class="font-gauge">KM/H</text>
+            <text id="gearVal" x="400" y="175" fill="#EF4444" font-size="28" font-weight="800" text-anchor="middle" class="font-gauge">1</text>
+          `;
+          break;
+
+        case 'motec':
+          // MoTeC C125 Pro GT3 (Шифт-лампы на всю ширину)
+          let leds = '';
+          for(let i=0; i<16; i++) {
+            leds += `<rect id="led${i}" x="${180 + i * 28}" y="60" width="22" height="14" rx="4" fill="#1E293B" class="shift-led"/>`;
+          }
+          g.innerHTML = `
+            ${leds}
+            <!-- Центр -->
+            <rect x="220" y="100" width="360" height="260" rx="16" fill="#0C1017" stroke="#1E293B" stroke-width="2"/>
+            <text x="245" y="135" fill="#64748B" font-size="12" font-weight="700" class="font-gauge">MOTEC C125 TELEMETRY</text>
+            <text id="speedVal" x="380" y="240" fill="#FFFFFF" font-size="95" font-weight="800" text-anchor="middle" class="font-gauge">0</text>
+            <text x="380" y="275" fill="#64748B" font-size="14" font-weight="700" text-anchor="middle" class="font-gauge">SPEED KM/H</text>
+            
+            <rect x="495" y="145" width="70" height="95" rx="12" fill="#1E293B"/>
+            <text id="gearVal" x="530" y="215" fill="#38BDF8" font-size="64" font-weight="800" text-anchor="middle" class="font-gauge">1</text>
+            
+            <text id="rpmVal" x="245" y="335" fill="#3B82F6" font-size="20" font-weight="700" class="font-gauge">900 RPM</text>
+            <text id="boostVal" x="535" y="335" fill="#10B981" font-size="16" font-weight="700" text-anchor="end" class="font-gauge">BOOST: 0.0</text>
+          `;
+          break;
+
+        case 'horizon':
+          // Точная копия HUD из Forza Horizon 5
+          g.innerHTML = `
+            <path d="M 250 340 A 160 160 0 1 1 550 340" fill="none" stroke="#1E293B" stroke-width="10" stroke-linecap="round"/>
+            <path id="fhArc" d="M 250 340 A 160 160 0 1 1 550 340" fill="none" stroke="#38BDF8" stroke-width="12" stroke-linecap="round" stroke-dasharray="750" stroke-dashoffset="750"/>
+            
+            <g transform="translate(400, 220)">
+              <text id="gearVal" y="-30" fill="#F59E0B" font-size="34" font-weight="800" text-anchor="middle" class="font-gauge">1</text>
+              <text id="speedVal" y="45" fill="#FFFFFF" font-size="90" font-weight="800" text-anchor="middle" class="font-gauge">0</text>
+              <text y="75" fill="#64748B" font-size="14" font-weight="700" text-anchor="middle" class="font-gauge">KM/H</text>
+            </g>
+          `;
+          break;
+
+        default:
+          // Универсальный спортивный даш
+          g.innerHTML = `
+            <path d="M 250 340 A 160 160 0 1 1 550 340" fill="none" stroke="#1E293B" stroke-width="14" stroke-linecap="round"/>
+            <path id="fhArc" d="M 250 340 A 160 160 0 1 1 550 340" fill="none" stroke="url(#blueGlow)" stroke-width="14" stroke-linecap="round" stroke-dasharray="750" stroke-dashoffset="750"/>
+            <text id="speedVal" x="400" y="240" fill="#FFFFFF" font-size="95" font-weight="800" text-anchor="middle" class="font-gauge">0</text>
+            <text id="gearVal" x="400" y="150" fill="#3B82F6" font-size="36" font-weight="800" text-anchor="middle" class="font-gauge">1</text>
+            <text x="400" y="275" fill="#64748B" font-size="14" font-weight="700" text-anchor="middle" class="font-gauge">KM/H</text>
+          `;
+          break;
+      }
+    }
+    switchDash('audi');
+
+    // Обновление векторной графики по значениям
+    function updateDashGraphics() {
+      const speed = Math.round(telemetry.speed);
+      const rpm = Math.round(telemetry.rpm);
+      const maxRpm = telemetry.maxRpm || 9000;
+      const rpmRatio = Math.min(Math.max((rpm - 900) / (maxRpm - 900), 0), 1);
+
+      // Обновление текстовых значений
+      const speedEl = document.getElementById('speedVal');
+      const gearEl = document.getElementById('gearVal');
+      const rpmEl = document.getElementById('rpmVal');
+      const boostEl = document.getElementById('boostVal');
+      const gEl = document.getElementById('gVal');
+
+      if (speedEl) speedEl.textContent = speed;
+      if (gearEl) gearEl.textContent = telemetry.gear;
+      if (rpmEl) rpmEl.textContent = `${rpm} RPM`;
+      if (boostEl) boostEl.textContent = telemetry.boost ? telemetry.boost.toFixed(1) : '0.0';
+      if (gEl) gEl.textContent = telemetry.gForce ? telemetry.gForce.toFixed(2) : '0.05';
+
+      // Анимация Audi RS
+      const audiBar = document.getElementById('audiRpmBar');
+      if (audiBar) {
+        audiBar.style.strokeDashoffset = 720 - (720 * rpmRatio * 0.82);
+      }
+
+      // Анимация Porsche Стрелки
+      const pNeedle = document.getElementById('porscheNeedle');
+      if (pNeedle) {
+        const deg = -120 + (rpmRatio * 240);
+        pNeedle.setAttribute('transform', `translate(400, 225) rotate(${deg})`);
+      }
+
+      // Анимация Horizon HUD
+      const fhArc = document.getElementById('fhArc');
+      if (fhArc) {
+        fhArc.style.strokeDashoffset = 750 - (750 * rpmRatio * 0.78);
+      }
+
+      // Анимация SU7 Ultra
+      const su7Bar = document.getElementById('su7PowerBar');
+      if (su7Bar) {
+        su7Bar.style.strokeDashoffset = 600 - (600 * rpmRatio * 0.9);
+      }
+
+      // MoTeC LED Shift-Lights
+      if (currentDash === 'motec') {
+        const activeLeds = Math.floor(rpmRatio * 16);
+        for(let i=0; i<16; i++) {
+          const led = document.getElementById(`led${i}`);
+          if (led) {
+            if (i <= activeLeds) {
+              led.setAttribute('fill', i < 6 ? '#10B981' : i < 12 ? '#F59E0B' : '#EF4444');
+            } else {
+              led.setAttribute('fill', '#1E293B');
+            }
+          }
+        }
+      }
+    }
+
+    // ================= 3. XIAOMI SU7 ULTRA SPORT MODE =================
+    function toggleUltraMode() {
+      telemetry.isUltra = !telemetry.isUltra;
+      const dash = document.getElementById('dashContainer');
+      const btn = document.getElementById('ultraBtn');
+
+      if (telemetry.isUltra) {
+        dash.classList.add('ultra-glow');
+        btn.classList.add('ring-2', 'ring-cyan-300');
+        // Легкая вибрация телефона при включении
+        if (window.navigator.vibrate) window.navigator.vibrate([40, 60, 40]);
+      } else {
+        dash.classList.remove('ultra-glow');
+        btn.classList.remove('ring-2', 'ring-cyan-300');
+      }
+    }
+
+    // ================= 4. WEBSOCKET ПОДКЛЮЧЕНИЕ К МОСТУ =================
+    function connectBridge() {
+      const url = document.getElementById('wsInput').value;
+      const dot = document.getElementById('statusDot');
+      const txt = document.getElementById('statusText');
+
+      txt.textContent = 'Подключение...';
+      dot.className = 'w-2 h-2 rounded-full bg-amber-500 animate-ping';
+
+      try {
+        if (socket) socket.close();
+        socket = new WebSocket(url);
+
+        socket.onopen = () => {
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+          txt.textContent = 'FH5 В СЕТИ (60 FPS)';
+          setTab('cluster');
+        };
+
+        socket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            telemetry.targetSpeed = data.speed || 0;
+            telemetry.targetRpm = data.rpm || 900;
+            telemetry.maxRpm = data.maxRpm || 9000;
+            telemetry.targetGear = data.gear || "1";
+            telemetry.boost = data.boost || 0.0;
+            telemetry.gForce = data.gForce || 0.05;
+          } catch(e) {}
+        };
+
+        socket.onclose = () => {
+          dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+          txt.textContent = 'Отключено';
+        };
+
+        socket.onerror = () => {
+          dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+          txt.textContent = 'Ошибка связи';
+        };
+      } catch(err) {
+        dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+        txt.textContent = 'Ошибка URL';
+      }
+    }
+
+    // ================= 5. УПРАВЛЕНИЕ ВКЛАДКАМИ =================
+    function setTab(tab) {
+      document.getElementById('tabCluster').classList.toggle('hidden', tab !== 'cluster');
+      document.getElementById('tabTune').classList.toggle('hidden', tab !== 'tune');
+      document.getElementById('tabUdp').classList.toggle('hidden', tab !== 'udp');
+
+      document.getElementById('navCluster').className = tab === 'cluster' 
+        ? 'px-3.5 py-1 text-xs font-semibold rounded-lg bg-white text-blue-600 shadow-sm transition' 
+        : 'px-3.5 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition';
+      document.getElementById('navTune').className = tab === 'tune' 
+        ? 'px-3.5 py-1 text-xs font-semibold rounded-lg bg-white text-blue-600 shadow-sm transition' 
+        : 'px-3.5 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition';
+      document.getElementById('navUdp').className = tab === 'udp' 
+        ? 'px-3.5 py-1 text-xs font-semibold rounded-lg bg-white text-blue-600 shadow-sm transition' 
+        : 'px-3.5 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition';
+    }
+
+    // ================= 6. БАЗА ТЮНИНГА 500+ АВТО =================
+    const sampleCars = [
+      { name: "Nissan Skyline GT-R V-Spec II (R34)", year: 1999, drive: "AWD", weight: 1560, dist: 54, pi: "A 785" },
+      { name: "Toyota Supra RZ", year: 1998, drive: "RWD", weight: 1490, dist: 53, pi: "B 688" },
+      { name: "Porsche 911 GT3 RS (992)", year: 2023, drive: "RWD", weight: 1450, dist: 39, pi: "S2 945" },
+      { name: "BMW M3 GTR", year: 2002, drive: "RWD", weight: 1350, dist: 50, pi: "A 798" },
+      { name: "Xiaomi SU7 Ultra Prototype", year: 2024, drive: "AWD", weight: 1900, dist: 49, pi: "X 999" },
+      { name: "Koenigsegg Jesko", year: 2020, drive: "RWD", weight: 1420, dist: 44, pi: "S2 991" },
+      { name: "Audi RS6 Avant", year: 2021, drive: "AWD", weight: 2075, dist: 56, pi: "S1 842" },
+      { name: "Subaru Impreza 22B STi", year: 1998, drive: "AWD", weight: 1270, dist: 58, pi: "B 692" },
+      { name: "Mitsubishi Lancer Evolution IX MR", year: 2006, drive: "AWD", weight: 1400, dist: 60, pi: "B 699" },
+      { name: "Mazda RX-7 FD", year: 1997, drive: "RWD", weight: 1280, dist: 50, pi: "B 670" },
+      { name: "Ferrari LaFerrari", year: 2013, drive: "RWD", weight: 1430, dist: 41, pi: "S2 966" },
+      { name: "Lamborghini Sesto Elemento", year: 2011, drive: "AWD", weight: 999, dist: 43, pi: "S2 985" },
+      { name: "Dodge Challenger SRT Demon", year: 2018, drive: "RWD", weight: 1940, dist: 58, pi: "S1 815" }
+    ];
+
+    let currentSelectedCar = sampleCars[0];
+    let currentDiscipline = 'road';
+
+    function renderCarList(cars) {
+      const list = document.getElementById('carListResults');
+      list.innerHTML = cars.map((c, i) => `
+        <div onclick="selectCar(${i})" class="p-2.5 flex items-center justify-between hover:bg-blue-50/50 cursor-pointer transition">
+          <div>
+            <div class="text-xs font-bold text-slate-800">${c.name}</div>
+            <div class="text-[10px] text-slate-400 font-medium">${c.year} • ${c.drive} • ${c.weight} кг</div>
+          </div>
+          <span class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-blue-600">${c.pi}</span>
+        </div>
+      `).join('');
+    }
+
+    function filterCars() {
+      const q = document.getElementById('carSearchInput').value.toLowerCase();
+      const filtered = sampleCars.filter(c => c.name.toLowerCase().includes(q) || c.drive.toLowerCase().includes(q));
+      renderCarList(filtered);
+    }
+
+    function selectCar(index) {
+      currentSelectedCar = sampleCars[index];
+      updateTuningCard();
+    }
+
+    function setDiscipline(d) {
+      currentDiscipline = d;
+      document.querySelectorAll('.disc-btn').forEach(b => {
+        b.className = 'disc-btn px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 font-medium whitespace-nowrap transition';
+      });
+      event.target.className = 'disc-btn px-3 py-1.5 rounded-xl bg-blue-600 text-white font-medium whitespace-nowrap transition';
+      updateTuningCard();
+    }
+
+    function updateTuningCard() {
+      const c = currentSelectedCar;
+      document.getElementById('targetCarTitle').innerText = c.name;
+      document.getElementById('targetCarSpecs').innerText = `${c.year} • ${c.drive} • ${c.weight} кг • ${c.dist}% Перед`;
+      
+      const frontDist = c.dist / 100;
+      const arbF = ((65 - 1) * frontDist + 1).toFixed(1);
+      const arbR = ((65 - 1) * (1 - frontDist) + 1).toFixed(1);
+
+      if (currentDiscipline === 'drift') {
+        document.getElementById('tuneTires').innerText = 'П: 2.2 / З: 1.6 Bar';
+        document.getElementById('tuneCamber').innerText = 'П: -4.5° / З: -0.8°';
+        document.getElementById('tuneArb').innerText = `П: ${(arbF*0.7).toFixed(1)} / З: ${(arbR*1.2).toFixed(1)}`;
+        document.getElementById('tuneDamp').innerText = 'Отбой: 8.5 / Сжатие: 4.2';
+      } else if (currentDiscipline === 'drag') {
+        document.getElementById('tuneTires').innerText = 'П: 2.8 / З: 1.0 Bar';
+        document.getElementById('tuneCamber').innerText = 'П: 0.0° / З: 0.0°';
+        document.getElementById('tuneArb').innerText = 'П: 45.0 / З: 65.0';
+        document.getElementById('tuneDamp').innerText = 'П: 1.0/12.0 • З: 15.0/2.0';
+      } else {
+        document.getElementById('tuneTires').innerText = 'П: 1.9 / З: 1.9 Bar';
+        document.getElementById('tuneCamber').innerText = 'П: -1.8° / З: -1.2°';
+        document.getElementById('tuneArb').innerText = `П: ${arbF} / З: ${arbR}`;
+        document.getElementById('tuneDamp').innerText = 'Отбой: 10.6 / Сжатие: 5.8';
+      }
+    }
+
+    renderCarList(sampleCars);
+    updateTuningCard();
+  </script>
+</body>
+</html>
